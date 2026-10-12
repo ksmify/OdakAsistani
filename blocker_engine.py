@@ -1665,6 +1665,10 @@ class BlockerEngine:
                 self.manual_study_active = False
                 self.manual_study_subject_id = ""
                 self.is_study_counting = False
+                self.current_study_video = ""
+                self.current_study_subject_id = ""
+                self._last_audio_ts = 0.0
+                self._manual_pause_latched = True
                 self.last_stopped_manual_subject_id = subject_id
                 self.last_stopped_manual_ts = time.time()
                 active_now = False
@@ -1676,6 +1680,7 @@ class BlockerEngine:
                 self.manual_study_subject_id = subject_id
                 self._last_loop_ts = time.time()
                 active_now = True
+        self.save_state()
         self._notify_change()
         return active_now
 
@@ -1687,6 +1692,11 @@ class BlockerEngine:
             self.manual_study_active = False
             self.manual_study_subject_id = ""
             self.is_study_counting = False
+            self.current_study_video = ""
+            self.current_study_subject_id = ""
+            self._last_audio_ts = 0.0
+            self._manual_pause_latched = True
+        self.save_state()
         self._notify_change()
 
     def set_preferred_solution_subject(self, subj_id: str):

@@ -1283,51 +1283,66 @@ while ($true) {
             ]
             if browser_sessions:
                 playing_study = []
+                paused_study = []
                 playing_non_study = []
                 for bs in browser_sessions:
                     status = (bs.get("status") or "").strip().lower()
                     smtc_title = (bs.get("title") or "").strip()
+                    is_this_study = (
+                        is_sol_site
+                        or is_study_video_title(smtc_title, require_platform=False, hwnd=window_hwnd)
+                        or (window_title and (
+                            clean_browser_title(smtc_title).lower() in clean_browser_title(window_title).lower()
+                            or clean_browser_title(window_title).lower() in clean_browser_title(smtc_title).lower()
+                        ))
+                    )
                     if status == "playing":
-                        if is_sol_site:
-                            # Kaynak site (345, Bilgi Sarmal veya özel eklenen site) açıksa pencere başlığını/kaynağı baz al
-                            playing_study.append(window_title)
-                        elif smtc_title and is_study_video_title(smtc_title, require_platform=False, hwnd=window_hwnd):
-                            playing_study.append(smtc_title)
-                        elif not smtc_title and is_study_video_title(window_title, require_platform=False, hwnd=window_hwnd):
-                            playing_study.append(window_title)
+                        if is_this_study:
+                            playing_study.append(smtc_title or window_title)
                         else:
                             playing_non_study.append(smtc_title or "Medya")
+                    elif status == "paused":
+                        if is_this_study:
+                            paused_study.append(smtc_title or window_title)
 
                 if playing_study:
                     best_title = clean_browser_title(playing_study[0]) or clean_browser_title(window_title)
                     return True, best_title, "confirmed_playing"
 
+                if paused_study and not playing_study:
+                    # SMTC'de ders videosu açıkça duraklatılmış (Paused)!
+                    # Başka bir sekmeden gerçek ders sesi gelmiyorsa ANINDA durdur!
+                    other_audio_study = any(
+                        bool(t.get("audio", False)) and is_study_video_title(
+                            (t.get("title") or "").strip(),
+                            require_platform=True,
+                            url=(t.get("url") or "").strip(),
+                            hwnd=int(t.get("hwnd") or 0)
+                        )
+                        for t in tabs
+                    )
+                    if not other_audio_study:
+                        return False, clean_browser_title(window_title), "main_video_paused"
+
                 if playing_non_study:
-                    # SMTC'de şarkı/arka plan sesi görünüyor.
-                    # Ancak kullanıcı aktif olarak bir ders sekmesini açmışsa (selected), sekmeden ses geliyorsa (audio)
-                    # veya geçerli pencere doğrudan ders videosuysa, arka plan müziği / lofi ders sayımını ASLA kesmemeli!
-                    bg_study = [
+                    # SMTC'de şarkı veya arka plan sesi çalıyor.
+                    # Eğer açık sekmeler arasında GERÇEKTEN ses çıkaran (audio=True) bir ders sekmesi varsa dersi say:
+                    bg_study_audio = [
                         (t.get("title") or "").strip()
                         for t in tabs
-                        if (bool(t.get("audio", False)) or bool(t.get("selected", False))) and is_study_video_title(
+                        if bool(t.get("audio", False)) and is_study_video_title(
                             (t.get("title") or "").strip(),
                             require_platform=True,
                             url=(t.get("url") or "").strip(),
                             hwnd=int(t.get("hwnd") or 0)
                         )
                     ]
-                    if bg_study:
-                        return True, clean_browser_title(bg_study[0]), "confirmed_playing"
-                    if is_study_video_title(window_title, require_platform=False, hwnd=window_hwnd):
-                        return True, clean_browser_title(window_title), "confirmed_playing"
+                    if bg_study_audio:
+                        return True, clean_browser_title(bg_study_audio[0]), "confirmed_playing"
+                    # Ders sekmesinden ses gelmiyor, sadece arka plan müziği çalıyor -> ders duraklatılmış!
+                    return False, clean_browser_title(window_title), "main_video_paused"
 
-                    return (
-                        False,
-                        f"🚫 Ders Dışı Video / Müzik Algılandı ({playing_non_study[0]}) — Derse Sayılmıyor!",
-                        "non_study_playing"
-                    )
-
-        # 2. KATMAN: Sekme Çubuğu (TabBar) Kontrolü — SMTC 'Paused' dese bile sekme ses veriyorsa veya seçiliyse ders say
+        # 2. KATMAN: Sekme Çubuğu (TabBar) Kontrolü
         if age < 5.0 and tabs:
             playing_study_tabs = []
             playing_non_study_tabs = []
@@ -1345,30 +1360,18 @@ while ($true) {
             if playing_study_tabs:
                 return True, clean_browser_title(playing_study_tabs[0]), "confirmed_playing"
 
-            # Eğer seçili sekme bir ders videosuysa, arka planda başka bir sekmeden ses gelse bile dersi say!
-            selected_study_tabs = [
-                (t.get("title") or "").strip()
-                for t in tabs
-                if bool(t.get("selected", False)) and is_study_video_title(
-                    (t.get("title") or "").strip(),
-                    require_platform=True,
-                    url=(t.get("url") or "").strip(),
-                    hwnd=int(t.get("hwnd") or 0)
-                )
-            ]
-            if selected_study_tabs:
-                return True, clean_browser_title(selected_study_tabs[0]), "confirmed_playing"
-
             if playing_non_study_tabs and not playing_study_tabs:
-                non_study_name = clean_browser_title(playing_non_study_tabs[0])
-                return (
-                    False,
-                    f"🚫 Ders Dışı Ses / Müzik Algılandı ({non_study_name}) — Derse Sayılmıyor!",
-                    "non_study_playing"
-                )
+                # Başka bir sekmeden ses geliyor ama ders sekmesi sessiz -> ders duraklatılmış!
+                return False, clean_browser_title(window_title), "main_video_paused"
 
-        # 3. KATMAN: Doğrudan Doğrulanmış Ders Penceresi / Sekmesi
-        return True, clean_browser_title(window_title), "confirmed_playing"
+        # 3. KATMAN: Sistem Sesi (Core Audio Peak) Kontrolü
+        if getattr(self, "_audio_detector", None) is None:
+            self._audio_detector = AudioPeakDetector()
+        if self._audio_detector.is_audio_playing():
+            return True, clean_browser_title(window_title), "confirmed_playing"
+
+        # Hiçbir ses, SMTC playing veya sekme sesi yoksa video kesinlikle duraklatılmıştır!
+        return False, clean_browser_title(window_title), "main_video_paused"
 
 
 _PID_NAME_CACHE = {}
