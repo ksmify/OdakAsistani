@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*$py.class
+state.json
+pc_apps_cache.json
+icon_cache/
+show_window.signal
+*.log
