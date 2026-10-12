@@ -1815,14 +1815,6 @@ class OdakAsistaniApp(ctk.CTk):
                     refs["q_lbl"].configure(text_color=TEXT_SECONDARY)
                     refs["q_entry"].configure(border_color=BORDER_DEFAULT)
 
-        # Açık olan Genel Rütbe Sıralaması veya Ders Rütbe Sıralamalarını güncel soru & periyoda göre tazele
-        if getattr(self, "_global_rank_ladder_expanded", False):
-            self._render_global_rank_ladder()
-
-        for sid, is_exp in getattr(self, "_subject_rank_ladders_expanded", {}).items():
-            if is_exp:
-                self._render_subject_rank_ladder(sid)
-
         if focus_stopped_entry and entry_to_focus is not None:
             self.after(60, lambda: entry_to_focus.focus_set() if entry_to_focus.winfo_exists() else None)
 
