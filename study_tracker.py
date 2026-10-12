@@ -1180,65 +1180,9 @@ while ($true) {
             time.sleep(1.0)
 
     def _is_cursor_on_youtube_sidebar(self, yt_hwnd: int) -> bool:
-        """
-        Kullanıcı ana videoyu açık bırakıp fareyi sağdaki önerilen videolar sütununda (#secondary)
-        tutarak mini oynatıcıdan (inline preview) başka bir videoyu izliyor mu kontrol eder.
-        """
-        if not yt_hwnd:
-            self._sidebar_enter_ts = 0.0
-            return False
-        try:
-            user32 = ctypes.windll.user32
-            if user32.IsIconic(yt_hwnd) or not user32.IsWindowVisible(yt_hwnd):
-                self._sidebar_enter_ts = 0.0
-                return False
-
-            rect = wintypes.RECT()
-            if not user32.GetWindowRect(yt_hwnd, ctypes.byref(rect)):
-                self._sidebar_enter_ts = 0.0
-                return False
-
-            win_w = rect.right - rect.left
-            win_h = rect.bottom - rect.top
-            if win_w < 750 or win_h < 400:
-                self._sidebar_enter_ts = 0.0
-                return False
-
-            screen_w = user32.GetSystemMetrics(0)
-            screen_h = user32.GetSystemMetrics(1)
-            if win_w >= screen_w - 4 and win_h >= screen_h - 4:
-                self._sidebar_enter_ts = 0.0
-                return False
-
-            pt = wintypes.POINT()
-            if not user32.GetCursorPos(ctypes.byref(pt)):
-                self._sidebar_enter_ts = 0.0
-                return False
-
-            hwnd_at_pt = user32.WindowFromPoint(pt)
-            if not hwnd_at_pt:
-                self._sidebar_enter_ts = 0.0
-                return False
-            root_at_pt = user32.GetAncestor(hwnd_at_pt, 2)  # GA_ROOT = 2
-            if root_at_pt != yt_hwnd:
-                self._sidebar_enter_ts = 0.0
-                return False
-
-            rel_x = (pt.x - rect.left) / float(win_w)
-            rel_y = (pt.y - rect.top) / float(win_h)
-
-            in_sidebar = (0.63 <= rel_x <= 0.985) and (0.12 <= rel_y <= 0.96)
-            now = time.time()
-            if in_sidebar:
-                if self._sidebar_enter_ts == 0.0:
-                    self._sidebar_enter_ts = now
-                return (now - self._sidebar_enter_ts) >= 1.0
-            else:
-                self._sidebar_enter_ts = 0.0
-                return False
-        except Exception:
-            self._sidebar_enter_ts = 0.0
-            return False
+        """Kullanıcının fare imleci nerede olursa olsun (oynatma listesi, notlar, yan panel) ders sayacını ASLA engelleme."""
+        self._sidebar_enter_ts = 0.0
+        return False
 
     def get_selected_tab_title(self, hwnd: int) -> str:
         """Belirtilen pencere tutamacına (HWND) ait aktif / seçili sekmenin başlığını döndürür."""
@@ -1322,13 +1266,7 @@ while ($true) {
 
         is_sol_site = is_solution_site_title(window_title, hwnd=window_hwnd)
 
-        # Yan sütun (sidebar) fare kontrolü (YouTube ise)
-        if not is_sol_site and self._is_cursor_on_youtube_sidebar(window_hwnd):
-            return (
-                False,
-                "🚫 Yan Sütun (Mini Oynatıcı) Üzerindesiniz — Derse Sayılmıyor!",
-                "sidebar_hover"
-            )
+        # Fare konumu ne olursa olsun (oynatma listesi, açıklama, notlar) ana video çalıyorsa ders sayımını ASLA kesme!
 
         # 1. KATMAN (EN HIZLI - 100ms): Windows SMTC Medya Oturumu Kontrolü
         if age < 5.0 and sessions:
