@@ -622,10 +622,19 @@ STUDY_TITLE_KEYWORDS = [
 SHORT_BOUNDARY_KEYWORDS = {"tyt", "ayt", "yks", "ydt", "dgs", "lgs", "msü", "fen", "mol", "baz", "dna", "rna", "eba", "345"}
 
 
+def tr_lower(text: str) -> str:
+    """Türkçe İ/ı ve I/i karakter dönüşümlerini ve birleşik unicode işaretlerini düzelten lowercase fonksiyonu."""
+    if not text:
+        return ""
+    s = text.replace("İ", "i").replace("I", "ı")
+    return s.lower().replace("\u0307", "")
+
+
 def _matches_keyword(text_low: str, kw: str) -> bool:
-    if kw in SHORT_BOUNDARY_KEYWORDS or len(kw) <= 3:
-        return bool(re.search(rf"\b{re.escape(kw)}\b", text_low))
-    return kw in text_low
+    kw_low = tr_lower(kw)
+    if kw_low in SHORT_BOUNDARY_KEYWORDS or len(kw_low) <= 3:
+        return bool(re.search(rf"\b{re.escape(kw_low)}\b", text_low))
+    return kw_low in text_low
 
 
 def find_matching_study_source(title: str, url: str = "", hwnd: int = 0) -> dict:
@@ -633,9 +642,9 @@ def find_matching_study_source(title: str, url: str = "", hwnd: int = 0) -> dict
     Verilen pencere/sekme başlığının veya aktif sekme URL'sinin Kaynak Siteler listesindeki
     (YouTube dışındaki) herhangi bir kaynak siteyle eşleşip eşleşmediğini döner.
     """
-    combined = f"{title or ''} {url or ''}".strip().lower()
+    combined = tr_lower(f"{title or ''} {url or ''}").strip()
     if hwnd and hwnd in _ACTIVE_BROWSER_URLS:
-        combined = f"{combined} {_ACTIVE_BROWSER_URLS.get(hwnd, '')}".strip().lower()
+        combined = f"{combined} {tr_lower(_ACTIVE_BROWSER_URLS.get(hwnd, ''))}".strip()
     if not combined:
         return {}
 
@@ -653,7 +662,7 @@ def find_matching_study_source(title: str, url: str = "", hwnd: int = 0) -> dict
         if dom and len(dom) >= 3 and dom in combined:
             return dict(src)
         for kw in (src.get("keywords") or []):
-            kw_low = (kw or "").strip().lower()
+            kw_low = tr_lower(kw).strip()
             if kw_low and _matches_keyword(combined, kw_low):
                 return dict(src)
     return {}
@@ -674,7 +683,7 @@ def is_study_video_title(title: str, require_platform: bool = False, url: str = 
     """
     if not title and not url:
         return False
-    title_low = (title or "").lower()
+    title_low = tr_lower(title or "")
 
     for ex in NON_STUDY_SITE_EXCLUSIONS:
         if ex in title_low:
@@ -718,7 +727,7 @@ def detect_subject_id(video_title: str, preferred_solution_subject: str = "otoma
        kategori seçilmişse ('matematik', 'turkce', 'soru_cozum' vb.), doğrudan o kategoriyi döner!
     2) Kaynak 'otomatik' moddaysa veya YouTube videosuysa, başlıktaki ders/konu anahtar kelimesinden algılar.
     """
-    title_low = (video_title or "").lower()
+    title_low = tr_lower(video_title or "")
     matched_source = find_matching_study_source(video_title, url=url, hwnd=hwnd)
     if matched_source:
         src_subj = matched_source.get("subject_id", "soru_cozum")
@@ -1219,31 +1228,29 @@ while ($true) {
         if age >= 5.0:
             return "", 0
 
-        # Eğer Windows SMTC açıkça tüm tarayıcı oturumlarının duraklatıldığını söylüyorsa arka plan sekmesini oynuyor sayma!
+        # 1. SMTC üzerinde 'Playing' olan ders oturumu
         if sessions:
             browser_sessions = [
                 s for s in sessions
                 if any(b in (s.get("app") or "").lower() for b in self.BROWSER_KEYWORDS)
             ]
-            if browser_sessions:
-                any_playing = any((bs.get("status") or "").strip().lower() == "playing" for bs in browser_sessions)
-                if not any_playing:
-                    return "", 0
-                for bs in browser_sessions:
-                    if (bs.get("status") or "").strip().lower() == "playing":
-                        st_title = (bs.get("title") or "").strip()
-                        if st_title and is_study_video_title(st_title, require_platform=False):
-                            clean = clean_browser_title(st_title)
-                            return (clean if clean else st_title), 0
+            for bs in browser_sessions:
+                if (bs.get("status") or "").strip().lower() == "playing":
+                    st_title = (bs.get("title") or "").strip()
+                    if st_title and is_study_video_title(st_title, require_platform=False):
+                        clean = clean_browser_title(st_title)
+                        return (clean if clean else st_title), 0
 
+        # 2. Açık sekmeler arasında ses veren (audio=True) veya aktif/seçili ders sekmesi
         for t in tabs:
             t_title = (t.get("title") or "").strip()
             t_audio = bool(t.get("audio", False))
             t_hwnd = int(t.get("hwnd") or 0)
             t_url = (t.get("url") or "").strip()
-            if t_audio and is_study_video_title(t_title, require_platform=True, url=t_url, hwnd=t_hwnd):
-                clean = clean_browser_title(t_title)
-                return (clean if clean else t_title), t_hwnd
+            if is_study_video_title(t_title, require_platform=True, url=t_url, hwnd=t_hwnd):
+                if t_audio or t.get("selected"):
+                    clean = clean_browser_title(t_title)
+                    return (clean if clean else t_title), t_hwnd
 
         return "", 0
 
@@ -1296,11 +1303,13 @@ while ($true) {
                     return True, best_title, "confirmed_playing"
 
                 if playing_non_study:
-                    # SMTC'de şarkı görünüyor; arka planda ayrıca ses çıkaran bir ders sekmesi var mı?
+                    # SMTC'de şarkı/arka plan sesi görünüyor.
+                    # Ancak kullanıcı aktif olarak bir ders sekmesini açmışsa (selected), sekmeden ses geliyorsa (audio)
+                    # veya geçerli pencere doğrudan ders videosuysa, arka plan müziği / lofi ders sayımını ASLA kesmemeli!
                     bg_study = [
                         (t.get("title") or "").strip()
                         for t in tabs
-                        if bool(t.get("audio", False)) and is_study_video_title(
+                        if (bool(t.get("audio", False)) or bool(t.get("selected", False))) and is_study_video_title(
                             (t.get("title") or "").strip(),
                             require_platform=True,
                             url=(t.get("url") or "").strip(),
@@ -1309,20 +1318,16 @@ while ($true) {
                     ]
                     if bg_study:
                         return True, clean_browser_title(bg_study[0]), "confirmed_playing"
+                    if is_study_video_title(window_title, require_platform=False, hwnd=window_hwnd):
+                        return True, clean_browser_title(window_title), "confirmed_playing"
+
                     return (
                         False,
                         f"🚫 Ders Dışı Video / Müzik Algılandı ({playing_non_study[0]}) — Derse Sayılmıyor!",
                         "non_study_playing"
                     )
 
-                # Tarayıcı medya oturumu var ama hiçbirisi 'Playing' değil -> Video DURAKLATILDI!
-                return (
-                    False,
-                    clean_browser_title(window_title),
-                    "main_video_paused"
-                )
-
-        # 2. KATMAN: SMTC oturumu oluşturmayan gömülü oynatıcılar için Sekme Çubuğu kontrolü
+        # 2. KATMAN: Sekme Çubuğu (TabBar) Kontrolü — SMTC 'Paused' dese bile sekme ses veriyorsa veya seçiliyse ders say
         if age < 5.0 and tabs:
             playing_study_tabs = []
             playing_non_study_tabs = []
@@ -1337,6 +1342,23 @@ while ($true) {
                     else:
                         playing_non_study_tabs.append(t_title)
 
+            if playing_study_tabs:
+                return True, clean_browser_title(playing_study_tabs[0]), "confirmed_playing"
+
+            # Eğer seçili sekme bir ders videosuysa, arka planda başka bir sekmeden ses gelse bile dersi say!
+            selected_study_tabs = [
+                (t.get("title") or "").strip()
+                for t in tabs
+                if bool(t.get("selected", False)) and is_study_video_title(
+                    (t.get("title") or "").strip(),
+                    require_platform=True,
+                    url=(t.get("url") or "").strip(),
+                    hwnd=int(t.get("hwnd") or 0)
+                )
+            ]
+            if selected_study_tabs:
+                return True, clean_browser_title(selected_study_tabs[0]), "confirmed_playing"
+
             if playing_non_study_tabs and not playing_study_tabs:
                 non_study_name = clean_browser_title(playing_non_study_tabs[0])
                 return (
@@ -1345,7 +1367,8 @@ while ($true) {
                     "non_study_playing"
                 )
 
-        return True, clean_browser_title(window_title), ""
+        # 3. KATMAN: Doğrudan Doğrulanmış Ders Penceresi / Sekmesi
+        return True, clean_browser_title(window_title), "confirmed_playing"
 
 
 _PID_NAME_CACHE = {}
@@ -1375,15 +1398,21 @@ def find_active_study_video(return_hwnd: bool = False):
     user32 = ctypes.windll.user32
     WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
+    # Windows masaüstü pencerelerine güvenli ve eksiksiz erişim için Default desktop'a bağlan
+    hDesk = None
+    try:
+        hDesk = user32.OpenDesktopW("Default", 0, False, 0x01FF)
+        if hDesk:
+            user32.SetThreadDesktop(hDesk)
+    except Exception:
+        pass
+
     fg_hwnd = user32.GetForegroundWindow()
     found = []
 
     def _cb(hwnd, _lparam):
         try:
             if not user32.IsWindowVisible(hwnd):
-                return True
-            length = user32.GetWindowTextLengthW(hwnd)
-            if length == 0:
                 return True
 
             pid = wintypes.DWORD()
@@ -1394,21 +1423,58 @@ def find_active_study_video(return_hwnd: bool = False):
             if pname not in BROWSER_PROCESSES:
                 return True
 
-            buf = ctypes.create_unicode_buffer(length + 1)
-            user32.GetWindowTextW(hwnd, buf, length + 1)
-            title = buf.value or ""
+            h_int = int(hwnd)
+            title = ""
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length > 0:
+                buf = ctypes.create_unicode_buffer(length + 1)
+                user32.GetWindowTextW(hwnd, buf, length + 1)
+                title = buf.value or ""
 
-            if is_study_video_title(title, require_platform=True, hwnd=hwnd):
-                clean = clean_browser_title(title)
+            # 1. Doğrudan pencere başlığı kontrolü
+            candidate_title = ""
+            if title and is_study_video_title(title, require_platform=True, hwnd=hwnd):
+                candidate_title = title
+            else:
+                # 2. UIAutomation ile yakalanan seçili sekme başlığı (Opera GX, Chrome vb.)
+                sel_title = _ACTIVE_BROWSER_SELECTED_TITLES.get(h_int, "")
+                if sel_title and is_study_video_title(sel_title, require_platform=True, hwnd=hwnd):
+                    candidate_title = sel_title
+                else:
+                    # 3. Açık sekmeler arasında ses veren veya seçili ders sekmesi
+                    tabs_for_hwnd = _ACTIVE_BROWSER_ALL_TABS.get(h_int, [])
+                    for t in tabs_for_hwnd:
+                        t_name = (t.get("title") or "").strip()
+                        if t_name and is_study_video_title(t_name, require_platform=True, hwnd=hwnd):
+                            candidate_title = t_name
+                            break
+
+            if candidate_title:
+                clean = clean_browser_title(candidate_title)
                 is_fg = (hwnd == fg_hwnd)
                 is_iconic = bool(user32.IsIconic(hwnd))
-                found.append((clean if clean else title, is_fg, is_iconic, hwnd))
+                found.append((clean if clean else candidate_title, is_fg, is_iconic, hwnd))
         except Exception:
             pass
         return True
 
     cb_func = WNDENUMPROC(_cb)
-    user32.EnumWindows(cb_func, 0)
+    if hDesk:
+        try:
+            user32.EnumDesktopWindows(hDesk, cb_func, 0)
+        except Exception:
+            user32.EnumWindows(cb_func, 0)
+    else:
+        user32.EnumWindows(cb_func, 0)
+
+    # EnumWindows pencereyi kaçırdıysa doğrudan hafızadaki seçili ders sekmelerini kontrol et:
+    if not found:
+        for h_int, t_name in _ACTIVE_BROWSER_SELECTED_TITLES.items():
+            if t_name and is_study_video_title(t_name, require_platform=True, hwnd=h_int):
+                clean = clean_browser_title(t_name)
+                is_fg = (h_int == fg_hwnd)
+                is_iconic = bool(user32.IsIconic(h_int)) if user32.IsWindow(h_int) else False
+                found.append((clean if clean else t_name, is_fg, is_iconic, h_int))
 
     if not found:
         if return_hwnd:
