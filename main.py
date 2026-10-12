@@ -1893,9 +1893,9 @@ class OdakAsistaniApp(ctk.CTk):
             elif is_unlocked:
                 cell_bg = BG_INPUT
                 cell_border = border_c
-                border_w = 1
+                border_w = 2
                 badge_txt = "✓ TAMAMLANDI"
-                badge_color = ACCENT_EMERALD_TEXT
+                badge_color = text_c
             else:
                 cell_bg = BG_INPUT
                 cell_border = BORDER_SUBTLE
@@ -1923,7 +1923,7 @@ class OdakAsistaniApp(ctk.CTk):
                 top_row,
                 text=tier_title,
                 font=self._font(12, "bold"),
-                text_color=text_c if (is_unlocked or is_current) else TEXT_SECONDARY,
+                text_color=text_c,
                 anchor="w"
             ).pack(side="left")
 
@@ -1931,7 +1931,7 @@ class OdakAsistaniApp(ctk.CTk):
                 top_row,
                 text=f"{th:,} Soru".replace(",", "."),
                 font=self._font(11, "bold"),
-                text_color=TEXT_PRIMARY if (is_unlocked or is_current) else TEXT_MUTED,
+                text_color=text_c if is_unlocked else TEXT_MUTED,
                 anchor="e"
             ).pack(side="right")
 
@@ -2034,9 +2034,9 @@ class OdakAsistaniApp(ctk.CTk):
             elif is_unlocked:
                 cell_bg = BG_SURFACE
                 cell_border = border_c
-                border_w = 1
+                border_w = 2
                 badge_txt = "✓ TAMAMLANDI"
-                badge_color = ACCENT_EMERALD_TEXT
+                badge_color = text_c
             else:
                 cell_bg = BG_SURFACE
                 cell_border = BORDER_SUBTLE
@@ -2064,7 +2064,7 @@ class OdakAsistaniApp(ctk.CTk):
                 t_row,
                 text=tier_title,
                 font=self._font(11, "bold"),
-                text_color=text_c if (is_unlocked or is_current) else TEXT_SECONDARY,
+                text_color=text_c,
                 anchor="w"
             ).pack(side="left")
 
@@ -2072,7 +2072,7 @@ class OdakAsistaniApp(ctk.CTk):
                 t_row,
                 text=f"{th:,}".replace(",", "."),
                 font=self._font(11, "bold"),
-                text_color=TEXT_PRIMARY if (is_unlocked or is_current) else TEXT_MUTED,
+                text_color=text_c if is_unlocked else TEXT_MUTED,
                 anchor="e"
             ).pack(side="right")
 
