@@ -390,6 +390,8 @@ class OdakAsistaniApp(ctk.CTk):
         self.reward_popup_win = None
         self.emergency_confirm_win = None
         self.tutorial_win = None
+        self.custom_lock_win = None
+        self.break_settings_win = None
         self.tutorial_overlay = None
         self._tutorial_anim_job = None
         self._tutorial_particles = []
@@ -2452,10 +2454,11 @@ class OdakAsistaniApp(ctk.CTk):
 
     def _open_break_bar_settings_popup(self):
         """Mola Barajının en sağındaki ayar simgesine basıldığında açılan Mola Barajı Ayarları Pop-up'ı."""
-        if self.break_settings_win is not None and self.break_settings_win.winfo_exists():
+        w = getattr(self, "break_settings_win", None)
+        if w is not None and w.winfo_exists():
             try:
-                self.break_settings_win.lift()
-                self.break_settings_win.focus_force()
+                w.lift()
+                w.focus_force()
             except Exception:
                 pass
             return
@@ -2797,10 +2800,11 @@ class OdakAsistaniApp(ctk.CTk):
 
     def _open_custom_lock_chooser_popup(self):
         """Sağ üstteki sayaç rozetine veya sol üstteki hedef rozetine tıklandığında açılan Custom Lock Chooser."""
-        if self.custom_lock_win is not None and self.custom_lock_win.winfo_exists():
+        w = getattr(self, "custom_lock_win", None)
+        if w is not None and w.winfo_exists():
             try:
-                self.custom_lock_win.lift()
-                self.custom_lock_win.focus_force()
+                w.lift()
+                w.focus_force()
             except Exception:
                 pass
             return
