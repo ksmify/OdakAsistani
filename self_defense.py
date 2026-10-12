@@ -168,17 +168,22 @@ def query_ntp_utc_timestamp() -> float:
     return 0.0
 
 
+# ==============================================================================
+# SİLİNEMEZLİK & ÖZ-SAVUNMA KORUMA MODU (GITHUB / GENEL KULLANICI UYUMLULUĞU)
+# ==============================================================================
+# GitHub versiyonunda ve genel kullanıcı bilgisayarlarında silme engellemesi
+# kesinlikle zorlanmaz. Kullanıcı dilediğinde klasörü silebilir ve kaldırabilir.
+# Katı öz-savunma (NTFS deny-delete, kernel lock, vault respawn) varsayılan olarak KAPALIDIR.
+ENABLE_STRICT_SELF_DEFENSE = False
+
+
 class SelfDefenseManager:
     """
-    Seçilen Hedef Kilit Tarihine (Varsayılan: 18 Haziran 2027 Cuma 00:00) kadar:
-    1) Odak Asistanı uygulama klasörünün, kaynak dosyalarının ve Masaüstü kısayolunun (Odak Asistanı.lnk)
-       silinmesini, yeniden adlandırılmasını veya taşınmasını hem Kernel Handle düzeyinde hem de
-       NTFS izinleri (icacls Deny Delete) düzeyinde engeller.
-    2) Herhangi bir dosya veya kısayol bir şekilde zarar görürse C:\\ProgramData\\OdakAsistaniVault
-       yedek kasasından saniyesinde otomatik onarır.
-    3) Başlangıç (Registry Run + StartupApproved) kayıtlarını sürekli korur.
-    4) Gerçek NTP zamanı ile hedef tarihe ulaşıldığında tüm silme korumasını ve kilitleri kaldırır;
-       kullanıcı Custom Lock Chooser ile yeni bir hedef seçtiğinde korumayı tekrar devreye alır.
+    Kilit Hedefi ve Süre Yönetimi:
+    1) Geri sayım (Custom Lock Chooser) ve NTP zaman doğrulamasını yürütür.
+    2) Masaüstü kısayolu ve başlangıç ayarlarını yönetir.
+    3) ENABLE_STRICT_SELF_DEFENSE = False olduğunda kullanıcı dilediğinde uygulamayı silebilir,
+       tüm kısıtlamalar ve hosts yasakları serbest bırakılabilir.
     """
 
     def __init__(self):
@@ -199,8 +204,16 @@ class SelfDefenseManager:
         self.unlock_date_str = TYT_UNLOCK_DATE_STR
         self.unlock_date_short = format_turkish_date_short(TYT_UNLOCK_DATETIME)
 
-        # İlk NTP kontrolünü ve korumayı başlat
+        # İlk NTP kontrolünü başlat
         self._sync_ntp_offset()
+
+        # Eğer katı öz savunma kapalıysa (GitHub & taşınabilir mod):
+        # Varsa eski NTFS engellerini serbest bırak, klasörün silinebilmesini sağla
+        if not ENABLE_STRICT_SELF_DEFENSE:
+            self.release_all_protections()
+            self._ensure_desktop_shortcut()
+            return
+
         if not self.is_unlock_date_reached():
             self.setup_vault_and_protect_all()
         else:
@@ -314,9 +327,10 @@ class SelfDefenseManager:
     def _acquire_kernel_lock(self, path: str, is_dir: bool = False):
         """
         Dosyayı veya klasörü FILE_SHARE_DELETE olmadan açar.
-        Bu sayede Odak Asistanı çalışırken Windows Gezgini veya cmd/PowerShell üzerinden
-        bu dosya/klasör/kısayol KESİNLİKLE silinemez, taşınamaz ve yeniden adlandırılamaz.
+        Katı savunma modu kapalıysa hiçbir kilit koymaz.
         """
+        if not ENABLE_STRICT_SELF_DEFENSE:
+            return
         norm_p = os.path.normcase(os.path.abspath(path))
         if norm_p in self._locked_handles:
             return
@@ -349,8 +363,10 @@ class SelfDefenseManager:
     def _apply_ntfs_deny_delete(self, path: str):
         """
         NTFS izinlerinde Everyone (*S-1-1-0) için yalnızca Silme (DE) iznini yasaklar.
-        Okuma ve yazma izinleri bozulmaz ancak dosya/kısayol silinemez ve taşınamaz.
+        Katı savunma modu kapalıysa hiçbir NTFS kısıtlaması koymaz.
         """
+        if not ENABLE_STRICT_SELF_DEFENSE:
+            return
         if not os.path.exists(path):
             return
         try:
@@ -491,12 +507,19 @@ class SelfDefenseManager:
 
     def setup_vault_and_protect_all(self):
         """
-        Uygulama dosyalarını gizli kasaya yedekler, ardından uygulama klasörünü,
-        kod dosyalarını ve Masaüstü kısayolunu silinmeye karşı kilitler.
+        Kısayol ve başlangıç kayıtlarını kontrol eder.
+        Eğer ENABLE_STRICT_SELF_DEFENSE aktifse ayrıca dosya kilitleri uygular.
         """
+        self._ensure_desktop_shortcut()
+        self._ensure_startup_persistence()
+
+        if not ENABLE_STRICT_SELF_DEFENSE:
+            # Taşınabilir / GitHub modunda silme koruması kesinlikle uygulanmaz
+            self.release_all_protections()
+            return
+
         try:
             os.makedirs(VAULT_DIR, exist_ok=True)
-            # Klasörü gizli yap
             ctypes.windll.kernel32.SetFileAttributesW(VAULT_DIR, 0x02)
         except Exception:
             pass
@@ -514,8 +537,7 @@ class SelfDefenseManager:
                 except Exception:
                     pass
 
-        # 2. Masaüstü kısayolunun var olduğundan emin ol ve yedekle
-        self._ensure_desktop_shortcut()
+        # 2. Masaüstü kısayolunu yedekle
         if os.path.exists(SHORTCUT_PATH):
             vault_lnk = os.path.join(VAULT_DIR, "Odak Asistanı.lnk")
             try:
@@ -526,7 +548,7 @@ class SelfDefenseManager:
             except Exception:
                 pass
 
-        # 3. Ana klasör, dosyalar ve Masaüstü kısayoluna hem NTFS Deny Delete hem Kernel Lock uygula
+        # 3. Ana klasör, dosyalar ve Masaüstü kısayoluna koruma uygula
         self._apply_ntfs_deny_delete(APP_DIR)
         self._acquire_kernel_lock(APP_DIR, is_dir=True)
 
@@ -540,14 +562,14 @@ class SelfDefenseManager:
             self._apply_ntfs_deny_delete(SHORTCUT_PATH)
             self._acquire_kernel_lock(SHORTCUT_PATH, is_dir=False)
 
-        self._ensure_startup_persistence()
-
     def enforce_periodic(self):
         """
-        Arka plan döngüsünde her 10 saniyede bir hafifçe çağrılır:
-        - Kısayol veya uygulama dosyası silinmeye çalışıldıysa anında onarır ve kilitler.
-        - Dosyalar yerindeyse gereksiz alt süreç (icacls.exe) başlatmaz, CPU'yu %0 yorar.
+        Arka plan döngüsünde periyodik kontrolleri yapar.
+        Eğer katı savunma kapalıysa dosya kilitleme veya icacls alt süreçleri çalıştırmaz.
         """
+        if not ENABLE_STRICT_SELF_DEFENSE:
+            return
+
         now = time.time()
         if now - self._last_defense_check_ts < 10.0:
             return
@@ -571,7 +593,7 @@ class SelfDefenseManager:
             if os.path.exists(fpath):
                 self._acquire_kernel_lock(fpath, is_dir=False)
 
-        # Masaüstü kısayolu kontrolü (Sadece silinmişse icacls çalıştır!)
+        # Masaüstü kısayolu kontrolü
         if not os.path.exists(SHORTCUT_PATH):
             self._ensure_desktop_shortcut()
             if os.path.exists(SHORTCUT_PATH):
@@ -583,7 +605,9 @@ class SelfDefenseManager:
 
     def release_all_protections(self):
         """
-        TYT'den 1 gün öncesi (18 Haziran 2027 00:00) geldiğinde tüm silme korumasını kaldırır.
+        Tüm NTFS silme kısıtlamalarını ve kernel kilitlerini kaldırır.
+        Uygulama klasörünün, dosyalarının ve kısayolunun kullanıcı tarafından
+        kolayca silinebilmesini veya taşınabilmesini sağlar.
         """
         self._protections_released = True
         self._release_kernel_locks()
@@ -592,3 +616,48 @@ class SelfDefenseManager:
         for fname in CORE_FILES:
             self._remove_ntfs_deny_delete(os.path.join(APP_DIR, fname))
             self._remove_ntfs_deny_delete(os.path.join(VAULT_DIR, fname))
+        if os.path.exists(VAULT_DIR):
+            self._remove_ntfs_deny_delete(VAULT_DIR)
+            try:
+                shutil.rmtree(VAULT_DIR, ignore_errors=True)
+            except Exception:
+                pass
+
+
+def cleanup_and_uninstall():
+    """
+    Kullanıcı Odak Asistanı'nı tamamen kaldırmak istediğinde tüm kayıtları,
+    hosts engellerini ve kısayolları temizler.
+    """
+    try:
+        mgr = SelfDefenseManager()
+        mgr.release_all_protections()
+    except Exception:
+        pass
+
+    # Masaüstü kısayollarını sil
+    for p in [SHORTCUT_PATH, os.path.join(os.environ.get("USERPROFILE", ""), "Desktop", "Odak Asistani.lnk")]:
+        if os.path.exists(p):
+            try:
+                os.remove(p)
+            except Exception:
+                pass
+
+    # Windows başlangıç kayıtlarını temizle
+    try:
+        import winreg
+        for subkey in [
+            r"Software\Microsoft\Windows\CurrentVersion\Run",
+            r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run",
+        ]:
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey, 0, winreg.KEY_SET_VALUE) as k:
+                    for vname in ["OdakAsistani", "Ders Odak", "DersOdak"]:
+                        try:
+                            winreg.DeleteValue(k, vname)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+    except Exception:
+        pass

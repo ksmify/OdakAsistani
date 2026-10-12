@@ -29,18 +29,35 @@ BROWSER_PROCESSES = {
 # ==============================================================================
 DEFAULT_ITEMS = [
     {
-        "id": "youtube",
-        "name": "YouTube (Ders & Video)",
-        "icon": "📺",
+        "id": "yt_shorts",
+        "name": "YouTube Shorts (Sekme)",
+        "icon": "📱",
         "category": "Video & Yayın",
         "item_type": "site",
-        "domains": [
-            "youtube.com", "www.youtube.com", "m.youtube.com",
-            "music.youtube.com", "youtu.be", "studio.youtube.com"
+        "domains": [],
+        "url_rules": ["youtube.com/shorts"],
+        "title_all_keywords": [["shorts", "youtube"], ["#shorts", "youtube"]],
+        "exe_names": [],
+        "tab_keywords": [],
+        "aliases": ["youtube shorts", "yt shorts", "shorts"]
+    },
+    {
+        "id": "yt_playables",
+        "name": "YouTube Playables (Oyunlar)",
+        "icon": "🎮",
+        "category": "Video & Yayın",
+        "item_type": "site",
+        "domains": [],
+        "url_rules": ["youtube.com/playables"],
+        "title_all_keywords": [
+            ["playables", "youtube"],
+            ["oyunlar", "youtube"],
+            ["mini", "oyunlar", "youtube"],
+            ["mini", "oyun", "youtube"]
         ],
         "exe_names": [],
-        "tab_keywords": ["- youtube", "youtube music"],
-        "aliases": ["youtube", "yt", "yutub", "youtub", "youtube music"]
+        "tab_keywords": [],
+        "aliases": ["youtube playables", "yt playables", "playables", "youtube oyunlar"]
     },
     {
         "id": "discord",

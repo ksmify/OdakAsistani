@@ -50,6 +50,13 @@ def normalize_turkish_token(token: str) -> list:
     Örn: "discord'u" -> ["discord"], "instagramı" -> ["instagramı", "instagram"]
     """
     t = token.strip().lower()
+    # Eğer bu bir URL, domain veya dosya yolu ise Türkçe ek ayıklaması yapma, tam halini koru
+    if "." in t or "/" in t or "\\" in t:
+        for apo in ["’", "‘", "`", "´", "'"]:
+            if apo in t:
+                t = t.split(apo)[0].strip()
+        return [t]
+
     # Kesme işaretlerini standartlaştır
     for apo in ["’", "‘", "`", "´", "'"]:
         if apo in t:
@@ -344,6 +351,13 @@ class CommandParser:
             if any(c in STOP_WORDS for c in stem_candidates):
                 continue
 
+            if target_state and any(c in ("youtube", "youtube.com", "yt", "youtu.be") for c in stem_candidates):
+                return {
+                    "success": False,
+                    "message": "⚠️ YouTube sabit ders kaynağı olduğu için tamamı kapatılamaz. Belirli bir bölümü kapatmak için lütfen yolunu yazın (örn: youtube.com/shorts veya youtube.com/playables).",
+                    "action": "youtube_protected"
+                }
+
             found_id = self._match_token_to_item(stem_candidates, all_items)
             if found_id:
                 if found_id not in matched_ids:
@@ -354,8 +368,9 @@ class CommandParser:
                 if len(cleaned_tok) >= 2:
                     custom_targets.append(cleaned_tok)
 
-        # Özel hedefleri (yalnızca domain, .exe veya şu an açık bir uygulama ise) işle
+        # Özel hedefleri (yalnızca domain, URL yolu, .exe veya şu an açık bir uygulama ise) işle
         added_custom_names = []
+        last_custom_error = ""
         running_apps = self.engine.get_running_user_apps()
 
         for c_target in custom_targets:
@@ -368,12 +383,12 @@ class CommandParser:
                     matched_running = rapp["exe_name"]
                     break
 
-            is_explicit_domain_or_exe = ("." in c_target) or c_target.endswith(".exe")
+            is_explicit_domain_or_exe = ("." in c_target) or ("/" in c_target) or c_target.endswith(".exe")
             if not matched_running and not is_explicit_domain_or_exe:
                 continue
 
             target_to_add = matched_running if matched_running else c_target
-            new_item, _ = self.engine.add_custom_item(
+            new_item, add_msg = self.engine.add_custom_item(
                 target_to_add,
                 category="Komutla Eklenen",
                 block_immediately=target_state,
@@ -381,6 +396,8 @@ class CommandParser:
             )
             if new_item:
                 added_custom_names.append(new_item["name"])
+            elif add_msg:
+                last_custom_error = add_msg
 
         changed_names = []
         if matched_ids:
@@ -389,6 +406,12 @@ class CommandParser:
         all_affected = changed_names + [n for n in added_custom_names if n not in changed_names]
 
         if not all_affected:
+            if last_custom_error:
+                return {
+                    "success": False,
+                    "message": last_custom_error,
+                    "action": "rejected"
+                }
             return {
                 "success": False,
                 "message": "⚠️ Hangi uygulama veya siteyi kastettiğinizi anlayamadım. Örn: \"youtube ve discord'u kapat\" veya \"ornek.com kapat\" yazabilirsiniz.",

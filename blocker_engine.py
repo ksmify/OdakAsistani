@@ -307,6 +307,17 @@ class BlockerEngine:
                                 s_item["icon_png"] = generate_badge_icon(item_id, ch, "#475569")
                             self.items[item_id] = s_item
 
+                    # YouTube sabit ders kaynağıdır: Alan adının tamamı asla engellenemez
+                    self.items.pop("youtube", None)
+                    for it in list(self.items.values()):
+                        if it.get("domains"):
+                            it["domains"] = [
+                                d for d in it["domains"]
+                                if d.strip().lower() not in ("youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be")
+                            ]
+                        if it.get("id") == "youtube" or it.get("name", "").lower() == "youtube":
+                            it["blocked"] = False
+
                     if "settings" in data:
                         self.settings.update(data["settings"])
                     if "stats" in data:
@@ -683,6 +694,10 @@ class BlockerEngine:
             return [dict(v) for v in self.items.values() if v.get("blocked")]
 
     def set_item_blocked(self, item_id: str, blocked: bool, duration_minutes: int = 0, silent: bool = False) -> bool:
+        if item_id == "youtube" and blocked:
+            self.add_log("⚠️ YouTube sabit ders kaynağıdır; alan adı kapatılamaz. Belli bir bölüm için youtube.com/shorts veya youtube.com/playables kullanın.")
+            return False
+
         with self.lock:
             if item_id not in self.items:
                 return False
@@ -714,6 +729,8 @@ class BlockerEngine:
         changed_names = []
         with self.lock:
             for item_id in item_ids:
+                if item_id == "youtube" and blocked:
+                    continue
                 if item_id in self.items:
                     self.items[item_id]["blocked"] = bool(blocked)
                     if blocked and duration_minutes > 0:
@@ -789,10 +806,67 @@ class BlockerEngine:
             clean_id = f"custom_{int(time.time())}"
 
         if is_domain:
-            # URL'den domain ayıkla
-            domain = re.sub(r"^https?://", "", lower_t).split("/")[0].strip()
+            # URL'yi şema / www / sorgu / port parçalarından ayıkla; yol (path) kısmını KORU
+            url_body = re.sub(r"^[a-z]+://", "", lower_t).lstrip("/").split("#")[0].strip()
+            host_raw = url_body.split("/")[0]
+            domain = host_raw.split("?")[0].split(":")[0].strip()
             if domain.startswith("www."):
                 domain = domain[4:]
+            path_part = url_body[len(host_raw):].split("?")[0].strip("/").strip()
+
+            if path_part:
+                # Yalnızca belirli bir sayfa/bölüm (örn. youtube.com/playables, youtube.com/shorts):
+                # Alan adının TAMAMI ASLA engellenmez (hosts'a yazılmaz); yalnızca o adresteki sekme kapatılır.
+                url_rule = f"{domain}/{path_part}"
+                path_tokens = [
+                    t for t in re.split(r"[/\-_.]+", path_part)
+                    if len(t) >= 3 and not t.isdigit()
+                ]
+                brand = domain.split(".")[0]
+                item_id = "url_" + re.sub(
+                    r"[^a-z0-9_]", "", url_rule.replace(".", "_").replace("/", "_").replace("-", "_")
+                )
+                badge_ch = (path_tokens[0][0] if path_tokens else domain[0]).upper()
+                new_item = {
+                    "id": item_id,
+                    "name": url_rule,
+                    "icon": "🌐",
+                    "icon_png": generate_badge_icon(item_id, badge_ch, "#0284c7"),
+                    "category": category,
+                    "item_type": "site",
+                    "is_pc_app": False,
+                    "domains": [],
+                    "url_rules": [url_rule],
+                    # Sekme başlığında hem bölüm adı hem site adı birlikte geçmeli (örn. "playables" + "youtube")
+                    "title_all_keywords": (
+                        ([path_tokens + [brand]] if path_tokens else [])
+                        + ([["playables", "youtube"], ["oyunlar", "youtube"], ["mini", "oyunlar", "youtube"], ["mini", "oyun", "youtube"]] if "playables" in path_part else [])
+                        + ([["shorts", "youtube"], ["#shorts", "youtube"]] if "shorts" in path_part else [])
+                    ),
+                    "exe_names": [],
+                    "tab_keywords": [],
+                    "aliases": [url_rule],
+                    "blocked": block_immediately,
+                    "until_ts": (time.time() + duration_minutes * 60) if (block_immediately and duration_minutes > 0) else 0.0,
+                    "is_custom": True,
+                }
+                with self.lock:
+                    self.items[new_item["id"]] = new_item
+                if block_immediately:
+                    self.add_log(f"➕ Yalnızca '{url_rule}' sayfası engellendi (sitenin geri kalanı açık).")
+                    self.enforce_browser_tabs_once()
+                else:
+                    self.add_log(f"➕ Sayfa kuralı listeye eklendi (Açık): {url_rule}")
+                self._notify_change()
+                return new_item, f"'{url_rule}' sayfası engellendi; {domain} sitesinin geri kalanı açık kalacak."
+
+            # YouTube sabit ders kaynağıdır: alan adının tamamı özel komutla kapatılamaz
+            if domain in ("youtube.com", "m.youtube.com", "youtu.be"):
+                return None, (
+                    "⚠️ YouTube sabit ders kaynağı olduğu için tamamı kapatılamaz. "
+                    "Belirli bir bölümü kapatmak için yolunu yazın (örn: youtube.com/shorts veya youtube.com/playables)."
+                )
+
             domains = [domain, f"www.{domain}", f"m.{domain}"]
             base_keyword = domain.split(".")[0]
             item_id = f"site_{clean_id}"
@@ -1001,6 +1075,9 @@ class BlockerEngine:
                     if item.get("blocked"):
                         for d in item.get("domains", []):
                             d_clean = d.strip().lower()
+                            # YouTube sabit ders kaynağıdır: Alan adı asla hosts dosyasına yazılamaz!
+                            if d_clean in ("youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"):
+                                continue
                             if d_clean and d_clean not in exempt_domains and d_clean not in domains_to_block:
                                 domains_to_block.append(d_clean)
 
@@ -1116,16 +1193,46 @@ class BlockerEngine:
         if killed_any:
             self._notify_change()
 
-    def _title_matches_blocked_rules(self, window_title: str, blocked_tab_rules: list):
-        if not window_title:
-            return None
-        title_lower = window_title.lower()
+    def _tab_matches_blocked_rules(self, window_title: str, current_url: str, blocked_tab_rules: list, specific_url_rules: list):
+        """
+        Pencere başlığı ve (varsa) sekme URL'si üzerinden engelli kurallarla eşleşme yapar.
+        Eşleşirse engelli öğenin adını döner, eşleşmezse None döner.
+        """
+        title_lower = (window_title or "").lower().strip()
+        url_lower = (current_url or "").lower().strip()
+        url_clean = re.sub(r"^[a-z]+://", "", url_lower).lstrip("/").split("?")[0].split("#")[0].strip()
+        if url_clean.startswith("www."):
+            url_clean = url_clean[4:]
+
         clean_title = re.sub(
             r"\s*[-—]\s*(google chrome|microsoft​? edge|brave|opera.*|mozilla firefox|vivaldi|arc).*$",
             "",
             title_lower
         ).strip()
 
+        # 1. Öncelik: Belirli sayfa / alt yol (URL) kuralları
+        for item_name, url_rules, title_all_kw in specific_url_rules:
+            # A) URL kontrolü (Adres çubuğundan gelen doğrudan URL eşleşmesi)
+            if url_clean:
+                for ur in url_rules:
+                    ur_clean = re.sub(r"^[a-z]+://", "", ur.lower()).lstrip("/").split("?")[0].strip()
+                    if ur_clean.startswith("www."):
+                        ur_clean = ur_clean[4:]
+                    if ur_clean and (ur_clean in url_clean or url_clean.startswith(ur_clean)):
+                        return item_name
+
+            # B) Başlıkta URL kuralının kendisi geçiyor mu?
+            for ur in url_rules:
+                ur_clean = re.sub(r"^[a-z]+://", "", ur.lower()).lstrip("/").split("?")[0].strip()
+                if ur_clean and ur_clean in title_lower:
+                    return item_name
+
+            # C) Başlık çoklu anahtar kelime kontrolü (örn. Hem 'playables' hem 'youtube' başlıkta var mı?)
+            for token_group in title_all_kw:
+                if token_group and all(t.lower() in title_lower for t in token_group):
+                    return item_name
+
+        # 2. Standart site kuralları (Tüm alan adı engelliyse)
         for item_name, keywords in blocked_tab_rules:
             for kw in keywords:
                 if len(kw) <= 3:
@@ -1136,10 +1243,13 @@ class BlockerEngine:
                         return item_name
         return None
 
+    def _title_matches_blocked_rules(self, window_title: str, blocked_tab_rules: list):
+        return self._tab_matches_blocked_rules(window_title, "", blocked_tab_rules, [])
+
     def enforce_browser_tabs_once(self, force_all_windows: bool = False):
         """
-        Tarayıcıda engelli bir web sitesinin (örn. Instagram DM sohbeti, YouTube vb.) sekmesi açıksa,
-        sohbetin/videonun tam ortasında bile Ctrl+W ile o sekmeyi anında yüzüne kapatır.
+        Tarayıcıda engelli bir web sitesinin (örn. Instagram DM sohbeti, YouTube playables vb.) sekmesi açıksa,
+        yalnızca o sekmeyi Ctrl+W ile anında kapatır.
         """
         with self.lock:
             if not self.settings.get("enable_tab_closer", True):
@@ -1149,8 +1259,18 @@ class BlockerEngine:
 
             _, _, exempt_keywords = self._get_active_break_exemptions()
             blocked_tab_rules = []
+            specific_url_rules = []
             for item in self.items.values():
                 if item.get("blocked") and item.get("item_type") in ("site", "both"):
+                    # 1. URL kuralları (yalnızca belirli bir sayfa/yol engellenmişse)
+                    url_rules = item.get("url_rules", [])
+                    title_all_kw = item.get("title_all_keywords", [])
+                    if url_rules or title_all_kw:
+                        specific_url_rules.append((item["name"], url_rules, title_all_kw))
+                        # url_rules varsa alan adının tamamını kapatmaz
+                        continue
+
+                    # 2. Standart tüm site kuralları
                     keywords = [k.lower() for k in item.get("tab_keywords", []) if k and k.lower() not in exempt_keywords]
                     for d in item.get("domains", []):
                         base = d.lower().replace("www.", "").split(".")[0]
@@ -1159,13 +1279,19 @@ class BlockerEngine:
                     if keywords:
                         blocked_tab_rules.append((item["name"], keywords))
 
-        if not blocked_tab_rules:
+        if not blocked_tab_rules and not specific_url_rules:
             return
 
         # 1. Ön plandaki pencereyi kontrol et
         hwnd, proc_name, window_title = get_foreground_window_info()
         if proc_name and proc_name in BROWSER_PROCESSES and window_title:
-            matched_name = self._title_matches_blocked_rules(window_title, blocked_tab_rules)
+            current_url = ""
+            try:
+                from study_tracker import _ACTIVE_BROWSER_URLS
+                current_url = _ACTIVE_BROWSER_URLS.get(int(hwnd), "")
+            except Exception:
+                pass
+            matched_name = self._tab_matches_blocked_rules(window_title, current_url, blocked_tab_rules, specific_url_rules)
             if matched_name:
                 with self.lock:
                     self._last_tab_close_ts = time.time()
@@ -1199,7 +1325,13 @@ class BlockerEngine:
                             return True
                         pname = psutil.Process(pid.value).name().lower()
                         if pname in BROWSER_PROCESSES:
-                            m_name = self._title_matches_blocked_rules(w_title, blocked_tab_rules)
+                            cur_url = ""
+                            try:
+                                from study_tracker import _ACTIVE_BROWSER_URLS
+                                cur_url = _ACTIVE_BROWSER_URLS.get(int(w_hwnd), "")
+                            except Exception:
+                                pass
+                            m_name = self._tab_matches_blocked_rules(w_title, cur_url, blocked_tab_rules, specific_url_rules)
                             if m_name:
                                 targets.append((w_hwnd, m_name))
                     except Exception:
@@ -2145,6 +2277,6 @@ class BlockerEngine:
 
     def shutdown(self):
         self._running = False
-        if self.settings.get("clean_hosts_on_exit", False):
+        if self.settings.get("clean_hosts_on_exit", True):
             self.sync_hosts_file(force_clean=True)
         self.save_state()
