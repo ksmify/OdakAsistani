@@ -1008,7 +1008,7 @@ while ($true) {
         } catch {}
     }
 
-    if ($tickCount % 14 -eq 0) {
+    if ($tickCount % 2 -eq 0) {
         $newTabs = @()
         try {
             $hwList = [WinHelper]::GetBrowserWindows()

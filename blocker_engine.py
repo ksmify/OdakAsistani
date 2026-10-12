@@ -1232,14 +1232,34 @@ class BlockerEngine:
                 if token_group and all(t.lower() in title_lower for t in token_group):
                     return item_name
 
-        # 2. Standart site kuralları (Tüm alan adı engelliyse)
-        for item_name, keywords in blocked_tab_rules:
+        # 2. Standart site kuralları (Tüm alan adı veya site engelliyse)
+        for item_name, keywords, domains in blocked_tab_rules:
+            # A) Adres çubuğu (URL) eşleşmesi — kullanıcı siteye girdiği an TAK diye kapat
+            if url_clean:
+                for d in domains:
+                    d_clean = d.lower().replace("www.", "").strip()
+                    if d_clean and (d_clean in url_clean or url_clean.startswith(d_clean)):
+                        return item_name
+                for kw in keywords:
+                    if len(kw) <= 3:
+                        if re.search(rf"\b{re.escape(kw)}\b", url_clean):
+                            return item_name
+                    else:
+                        if kw in url_clean:
+                            return item_name
+
+            # B) Başlık eşleşmesi (DNS hatası, 'siteye ulaşılamıyor' veya normal sayfa başlığı)
+            for d in domains:
+                d_clean = d.lower().replace("www.", "").strip()
+                if d_clean and (d_clean in title_lower or d_clean in clean_title):
+                    return item_name
+
             for kw in keywords:
                 if len(kw) <= 3:
-                    if re.search(rf"\b{re.escape(kw)}\b", clean_title):
+                    if re.search(rf"\b{re.escape(kw)}\b", clean_title) or re.search(rf"\b{re.escape(kw)}\b", title_lower):
                         return item_name
                 else:
-                    if kw in clean_title:
+                    if kw in clean_title or kw in title_lower:
                         return item_name
         return None
 
@@ -1248,13 +1268,13 @@ class BlockerEngine:
 
     def enforce_browser_tabs_once(self, force_all_windows: bool = False):
         """
-        Tarayıcıda engelli bir web sitesinin (örn. Instagram DM sohbeti, YouTube playables vb.) sekmesi açıksa,
+        Tarayıcıda engelli bir web sitesinin (örn. Instagram, TikTok, YouTube playables vb.) sekmesi açıksa,
         yalnızca o sekmeyi Ctrl+W ile anında kapatır.
         """
         with self.lock:
             if not self.settings.get("enable_tab_closer", True):
                 return
-            if not force_all_windows and (time.time() - self._last_tab_close_ts < 0.35):
+            if not force_all_windows and (time.time() - self._last_tab_close_ts < 0.20):
                 return
 
             _, _, exempt_keywords = self._get_active_break_exemptions()
@@ -1267,17 +1287,17 @@ class BlockerEngine:
                     title_all_kw = item.get("title_all_keywords", [])
                     if url_rules or title_all_kw:
                         specific_url_rules.append((item["name"], url_rules, title_all_kw))
-                        # url_rules varsa alan adının tamamını kapatmaz
                         continue
 
                     # 2. Standart tüm site kuralları
                     keywords = [k.lower() for k in item.get("tab_keywords", []) if k and k.lower() not in exempt_keywords]
-                    for d in item.get("domains", []):
+                    domains = [d.lower() for d in item.get("domains", []) if d]
+                    for d in domains:
                         base = d.lower().replace("www.", "").split(".")[0]
                         if len(base) >= 4 and base not in keywords and base not in exempt_keywords:
                             keywords.append(base)
-                    if keywords:
-                        blocked_tab_rules.append((item["name"], keywords))
+                    if keywords or domains:
+                        blocked_tab_rules.append((item["name"], keywords, domains))
 
         if not blocked_tab_rules and not specific_url_rules:
             return
