@@ -37,6 +37,7 @@ from study_tracker import (
     set_dynamic_study_sources,
     build_custom_study_source,
     get_source_category_label,
+    find_matching_study_source,
 )
 from self_defense import SelfDefenseManager
 
@@ -211,6 +212,7 @@ class BlockerEngine:
         self.preferred_solution_subject = "otomatik"
         self.study_sources = [dict(s) for s in DEFAULT_STUDY_SOURCES]
         set_dynamic_study_sources(self.study_sources)
+        self.source_stats = {}
         self.video_detection_enabled = True
         self.last_heartbeat_ts = time.time()
 
@@ -468,6 +470,23 @@ class BlockerEngine:
                                 self.study_sources.append(cp)
                         set_dynamic_study_sources(self.study_sources)
 
+                        # Kaynak site istatistiklerini (hangi sitede hangi ders ne kadar çalışıldı) yükle
+                        saved_src_stats = st.get("source_stats", {})
+                        if isinstance(saved_src_stats, dict) and saved_src_stats:
+                            self.source_stats = saved_src_stats
+                        else:
+                            self.source_stats = {}
+                            # Eğer daha önceden ders süreleri varsa YouTube'a aktararak geçmiş istatistiği koru!
+                            if any(v > 0 for v in self.subject_seconds.values()):
+                                yt_subjs = {k: float(v) for k, v in self.subject_seconds.items() if float(v) > 0}
+                                yt_total = sum(yt_subjs.values())
+                                if yt_total > 0:
+                                    self.source_stats["src_youtube"] = {
+                                        "name": "YouTube",
+                                        "total_seconds": yt_total,
+                                        "subjects": yt_subjs
+                                    }
+
                         # Bilgisayar kapatılıp yeniden açılmış mı kontrol et
                         # (Windows Hızlı Başlatma / Kapatma / Uyku durumu dahil: son kalp atışından beri > 5 dk geçtiyse
                         # veya boot_time değiştiyse veya --boot ile açıldıysa mola barajı sayacını sıfırla!)
@@ -659,6 +678,7 @@ class BlockerEngine:
                         "daily_history": self.daily_history,
                         "preferred_solution_subject": self.preferred_solution_subject,
                         "study_sources": self.study_sources,
+                        "source_stats": self.source_stats,
                         "video_detection_enabled": self.video_detection_enabled,
                     }
                 }
@@ -1607,12 +1627,89 @@ class BlockerEngine:
                     bucket["questions"][sid] = 0
         return bucket
 
-    def _record_study_seconds(self, subj_id: str, dt: float):
+    def _record_study_seconds(self, subj_id: str, dt: float, source_id: str = "src_youtube", source_name: str = "YouTube"):
         if dt <= 0.0:
             return
         self.subject_seconds[subj_id] = self.subject_seconds.get(subj_id, 0.0) + dt
         bucket = self._ensure_day_bucket()
         bucket["seconds"][subj_id] = float(bucket["seconds"].get(subj_id, 0.0)) + dt
+
+        # Kaynak site bazlı ders çalışma istatistiğini kaydet
+        if not hasattr(self, "source_stats") or not isinstance(self.source_stats, dict):
+            self.source_stats = {}
+        if source_id not in self.source_stats:
+            self.source_stats[source_id] = {
+                "name": source_name,
+                "total_seconds": 0.0,
+                "subjects": {}
+            }
+        s_entry = self.source_stats[source_id]
+        if source_name and s_entry.get("name") != source_name:
+            s_entry["name"] = source_name
+        s_entry["total_seconds"] = float(s_entry.get("total_seconds", 0.0)) + dt
+        subjs_map = s_entry.setdefault("subjects", {})
+        subjs_map[subj_id] = float(subjs_map.get(subj_id, 0.0)) + dt
+
+    def get_source_study_ranking(self) -> list:
+        """
+        Kaynak sitelerde en çok hangi sitede ders işlenildiğini ve o sitede hangi derslerin
+        işlenildiğini süreleriyle birlikte sıralı liste olarak döndürür.
+        """
+        with self.lock:
+            if not hasattr(self, "source_stats") or not self.source_stats:
+                return []
+
+            # Bilinen tanımlı kaynakları bul
+            known_sources_map = {s["id"]: s for s in self.study_sources}
+            total_all_sources_sec = sum(float(v.get("total_seconds", 0.0)) for v in self.source_stats.values())
+
+            ranking = []
+            for src_id, s_data in self.source_stats.items():
+                tot_sec = float(s_data.get("total_seconds", 0.0))
+                if tot_sec <= 0.0:
+                    continue
+                src_name = s_data.get("name", src_id)
+                src_obj = known_sources_map.get(src_id, {})
+                badge_code = src_obj.get("badge") or ("YT" if src_id == "src_youtube" else ("MN" if src_id == "src_manual" else "WEB"))
+                if src_id == "src_ucdortbes":
+                    badge_code = "345"
+                elif src_id == "src_bilgisarmal":
+                    badge_code = "BS"
+
+                # Bu sitede çalışılan dersleri süreye göre büyükten küçüğe sırala
+                subjs_raw = s_data.get("subjects", {})
+                subj_list = []
+                for s_id, s_sec in subjs_raw.items():
+                    sec_val = float(s_sec)
+                    if sec_val <= 0.0:
+                        continue
+                    s_info = get_subject_info(s_id)
+                    s_pct = int(round((sec_val / tot_sec) * 100)) if tot_sec > 0 else 0
+                    subj_list.append({
+                        "id": s_id,
+                        "name": s_info.get("name", s_id),
+                        "icon": s_info.get("icon", "📖"),
+                        "color": s_info.get("color", "#10b981"),
+                        "seconds": sec_val,
+                        "percent": s_pct,
+                    })
+                subj_list.sort(key=lambda x: x["seconds"], reverse=True)
+
+                overall_pct = int(round((tot_sec / total_all_sources_sec) * 100)) if total_all_sources_sec > 0 else 0
+
+                ranking.append({
+                    "id": src_id,
+                    "name": src_name,
+                    "badge": badge_code,
+                    "domain": src_obj.get("domain", ""),
+                    "total_seconds": tot_sec,
+                    "overall_percent": overall_pct,
+                    "subjects": subj_list,
+                    "top_subject": subj_list[0] if subj_list else None,
+                })
+
+            ranking.sort(key=lambda x: x["total_seconds"], reverse=True)
+            return ranking
 
     def add_solved_questions(self, subject_id: str, count: int) -> int:
         """
@@ -1868,6 +1965,7 @@ class BlockerEngine:
             for k in list(self.subject_questions.keys()):
                 self.subject_questions[k] = 0
             self.daily_history = {}
+            self.source_stats = {}
         self._notify_change()
 
     def _detect_browser_pause_input(self, is_browser_fg: bool, video_hwnd: int) -> bool:
@@ -1941,7 +2039,12 @@ class BlockerEngine:
                 self.current_study_video = f"Test / Masa Başı Çalışma ({subj_info['name']})"
                 self.current_study_subject_id = man_subj
                 self.is_study_counting = True
-                self._record_study_seconds(man_subj, dt)
+                self._record_study_seconds(
+                    man_subj,
+                    dt,
+                    source_id="src_manual",
+                    source_name="Test / Masa Başı Çalışma"
+                )
                 self.study_watched_seconds = min(
                     float(self.study_goal_seconds),
                     self.study_watched_seconds + dt
@@ -2048,7 +2151,14 @@ class BlockerEngine:
 
             if audio_playing_now or in_speech_grace or player_confirmed_playing:
                 self.is_study_counting = True
-                self._record_study_seconds(subj_id, dt)
+                matched_source = find_matching_study_source(effective_title, hwnd=video_hwnd)
+                if matched_source and matched_source.get("id"):
+                    s_id = matched_source["id"]
+                    s_name = matched_source.get("name", s_id)
+                else:
+                    s_id = "src_youtube"
+                    s_name = "YouTube"
+                self._record_study_seconds(subj_id, dt, source_id=s_id, source_name=s_name)
                 self.study_watched_seconds = min(
                     float(self.study_goal_seconds),
                     self.study_watched_seconds + dt

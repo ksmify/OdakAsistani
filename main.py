@@ -406,6 +406,11 @@ class OdakAsistaniApp(ctk.CTk):
         self._stats_built = False
         self._sources_built = False
         self._sources_list_frame = None
+        self._source_stats_expanded = False
+        self._source_stats_card = None
+        self._source_stats_toggle_btn = None
+        self._source_stats_summary_lbl = None
+        self._source_stats_body_frame = None
         self._subject_ui_refs = {}
         self._period_btn_refs = {}
         self._item_card_refs = {}
@@ -1762,9 +1767,70 @@ class OdakAsistaniApp(ctk.CTk):
         )
         self._new_source_preview_lbl.pack(fill="x", padx=12, pady=7)
 
-        # 2. KAYITLI KAYNAK SİTELER LİSTESİ BAŞLIĞI VE KONTEYNERİ
+        # 2. EN ÇOK ÇALIŞILAN KAYNAK SİTELER & DERS ANALİZİ (AÇILIP KAPANAN AKORDİYON PARÇACIK)
+        self._source_stats_card = ctk.CTkFrame(
+            self.sources_scroll_frame,
+            fg_color=BG_SURFACE,
+            border_color=BORDER_STRONG,
+            border_width=1,
+            corner_radius=14
+        )
+        self._source_stats_card.grid(row=1, column=0, sticky="ew", padx=6, pady=(0, 10))
+        self._source_stats_card.grid_columnconfigure(0, weight=1)
+
+        # Akordiyon Başlık Çubuğu (Tıklanabilir)
+        acc_header = ctk.CTkFrame(self._source_stats_card, fg_color="transparent")
+        acc_header.grid(row=0, column=0, sticky="ew", padx=18, pady=12)
+        acc_header.grid_columnconfigure(0, weight=1)
+
+        title_wrap = ctk.CTkFrame(acc_header, fg_color="transparent")
+        title_wrap.grid(row=0, column=0, sticky="w")
+
+        ctk.CTkLabel(
+            title_wrap,
+            text="📊 EN ÇOK ÇALIŞILAN KAYNAK SİTELER & DERS ANALİZİ",
+            font=self._font(13, "bold"),
+            text_color=TEXT_PRIMARY,
+            anchor="w"
+        ).pack(anchor="w")
+
+        self._source_stats_summary_lbl = ctk.CTkLabel(
+            title_wrap,
+            text="Veriler yükleniyor...",
+            font=self._font(12),
+            text_color=ACCENT_EMERALD_TEXT,
+            anchor="w"
+        )
+        self._source_stats_summary_lbl.pack(anchor="w", pady=(2, 0))
+
+        # Sağ: Aç/Kapat Butonu
+        self._source_stats_toggle_btn = ctk.CTkButton(
+            acc_header,
+            text="Detayları Göster ▾",
+            font=self._font(12, "bold"),
+            fg_color=BG_ELEVATED,
+            hover_color=BG_ELEVATED_HOVER,
+            text_color="#e4e4e7",
+            border_color=BORDER_DEFAULT,
+            border_width=1,
+            width=150,
+            height=32,
+            corner_radius=8,
+            command=self._on_toggle_source_stats_accordion
+        )
+        self._source_stats_toggle_btn.grid(row=0, column=1, sticky="e", padx=(10, 0))
+
+        # Tıklanabilir başlık alanı desteği (başlığa tıklanınca da açılsın/kapansın)
+        acc_header.bind("<Button-1>", lambda _e: self._on_toggle_source_stats_accordion())
+        title_wrap.bind("<Button-1>", lambda _e: self._on_toggle_source_stats_accordion())
+
+        # Akordiyon İçerik Gövdesi (Varsayılan olarak kapalıdır, tıklandığında açılır)
+        self._source_stats_body_frame = ctk.CTkFrame(self._source_stats_card, fg_color="transparent")
+        self._source_stats_body_frame.grid_columnconfigure(0, weight=1)
+
+        # 3. KAYITLI KAYNAK SİTELER LİSTESİ BAŞLIĞI VE KONTEYNERİ
         list_hdr = ctk.CTkFrame(self.sources_scroll_frame, fg_color="transparent")
-        list_hdr.grid(row=1, column=0, sticky="ew", padx=10, pady=(4, 6))
+        list_hdr.grid(row=2, column=0, sticky="ew", padx=10, pady=(4, 6))
         list_hdr.grid_columnconfigure(0, weight=1)
 
         self._sources_count_lbl = ctk.CTkLabel(
@@ -1785,15 +1851,235 @@ class OdakAsistaniApp(ctk.CTk):
         ).grid(row=0, column=1, sticky="e")
 
         self._sources_list_frame = ctk.CTkFrame(self.sources_scroll_frame, fg_color="transparent")
-        self._sources_list_frame.grid(row=2, column=0, sticky="ew", padx=6, pady=(0, 12))
+        self._sources_list_frame.grid(row=3, column=0, sticky="ew", padx=6, pady=(0, 12))
         self._sources_list_frame.grid_columnconfigure(0, weight=1)
 
         self._sync_sources_view()
+
+    def _on_toggle_source_stats_accordion(self):
+        """Kaynak siteler çalışma analizi listesini açar / kapatır."""
+        self._source_stats_expanded = not self._source_stats_expanded
+        if self._source_stats_expanded:
+            self._source_stats_toggle_btn.configure(
+                text="Listeyi Kapat ▴",
+                fg_color=BG_ELEVATED_HOVER
+            )
+            self._source_stats_body_frame.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 14))
+            self._render_source_stats_accordion_body()
+        else:
+            self._source_stats_toggle_btn.configure(
+                text="Detayları Göster ▾",
+                fg_color=BG_ELEVATED
+            )
+            self._source_stats_body_frame.grid_forget()
+
+    def _render_source_stats_accordion_body(self):
+        """Açılan akordiyonun içindeki kaynak sıralamasını ve o sitede çalışılan dersleri çizer."""
+        if not self._source_stats_body_frame:
+            return
+
+        for w in self._source_stats_body_frame.winfo_children():
+            w.destroy()
+
+        ranking = self.engine.get_source_study_ranking()
+        if not ranking:
+            empty_box = ctk.CTkFrame(
+                self._source_stats_body_frame,
+                fg_color=BG_INPUT,
+                border_color=BORDER_SUBTLE,
+                border_width=1,
+                corner_radius=10
+            )
+            empty_box.pack(fill="x", pady=4)
+            ctk.CTkLabel(
+                empty_box,
+                text="📖 Henüz kayıtlı kaynak çalışma verisi bulunmuyor. Bir kaynak siteden video izledikçe veya test çözdükçe burada listelenecek!",
+                font=self._font(12),
+                text_color=TEXT_MUTED
+            ).pack(padx=14, pady=12)
+            return
+
+        divider = ctk.CTkFrame(self._source_stats_body_frame, fg_color=BORDER_SUBTLE, height=1)
+        divider.pack(fill="x", pady=(0, 12))
+
+        for r_idx, src_data in enumerate(ranking):
+            src_id = src_data["id"]
+            src_name = src_data["name"]
+            tot_sec = src_data["total_seconds"]
+            overall_pct = src_data["overall_percent"]
+            badge_code = src_data["badge"]
+            subjs = src_data["subjects"]
+
+            row_card = ctk.CTkFrame(
+                self._source_stats_body_frame,
+                fg_color=BG_CARD,
+                border_color=ACCENT_EMERALD if r_idx == 0 else BORDER_DEFAULT,
+                border_width=1,
+                corner_radius=12
+            )
+            row_card.pack(fill="x", pady=5)
+            row_card.grid_columnconfigure(1, weight=1)
+
+            # Sol Sıra & Rozet
+            left_badge_col = ctk.CTkFrame(row_card, fg_color="transparent")
+            left_badge_col.grid(row=0, column=0, padx=(14, 12), pady=12, sticky="nw")
+
+            rank_badge_text = f"#{r_idx + 1}"
+            rank_lbl = ctk.CTkLabel(
+                left_badge_col,
+                text=rank_badge_text,
+                font=self._font(11, "bold"),
+                text_color=ACCENT_EMERALD_TEXT if r_idx == 0 else TEXT_MUTED
+            )
+            rank_lbl.pack()
+
+            if src_id == "src_youtube":
+                b_col = "#dc2626"
+            elif src_id == "src_ucdortbes":
+                b_col = "#f59e0b"
+            elif src_id == "src_bilgisarmal":
+                b_col = "#e4e4e7"
+            elif src_id == "src_manual":
+                b_col = "#10b981"
+            else:
+                b_col = "#3b82f6"
+
+            badge_img = create_subject_badge_ctk(badge_code, b_col)
+            ctk.CTkLabel(
+                left_badge_col,
+                text="",
+                image=badge_img,
+                width=42
+            ).pack(pady=(2, 0))
+
+            # Orta İçerik (Başlık + Süre + İlerleme Çubuğu + Çalışılan Dersler Dağılımı)
+            center_col = ctk.CTkFrame(row_card, fg_color="transparent")
+            center_col.grid(row=0, column=1, sticky="ew", padx=(0, 14), pady=10)
+            center_col.grid_columnconfigure(0, weight=1)
+
+            title_row = ctk.CTkFrame(center_col, fg_color="transparent")
+            title_row.grid(row=0, column=0, sticky="ew")
+            title_row.grid_columnconfigure(0, weight=1)
+
+            title_left = ctk.CTkFrame(title_row, fg_color="transparent")
+            title_left.pack(side="left")
+
+            ctk.CTkLabel(
+                title_left,
+                text=src_name,
+                font=self._font(14, "bold"),
+                text_color=TEXT_PRIMARY
+            ).pack(side="left")
+
+            if r_idx == 0:
+                trophy_pill = ctk.CTkFrame(
+                    title_left,
+                    fg_color="#064e3b",
+                    border_color=ACCENT_EMERALD,
+                    border_width=1,
+                    corner_radius=6
+                )
+                trophy_pill.pack(side="left", padx=(8, 0))
+                ctk.CTkLabel(
+                    trophy_pill,
+                    text="🏆 EN ÇOK ÇALIŞILAN KAYNAK",
+                    font=self._font(10, "bold"),
+                    text_color=ACCENT_EMERALD_TEXT
+                ).pack(padx=6, pady=1)
+
+            time_right = ctk.CTkFrame(title_row, fg_color="transparent")
+            time_right.pack(side="right")
+
+            ctk.CTkLabel(
+                time_right,
+                text=format_duration_tr(tot_sec),
+                font=self._font(13, "bold"),
+                text_color=ACCENT_EMERALD_TEXT
+            ).pack(side="left")
+
+            ctk.CTkLabel(
+                time_right,
+                text=f"  (%{overall_pct})",
+                font=self._font(11, "bold"),
+                text_color=TEXT_SECONDARY
+            ).pack(side="left")
+
+            # Kaynak Genel İlerleme Çubuğu
+            pbar = ctk.CTkProgressBar(
+                center_col,
+                height=5,
+                corner_radius=3,
+                fg_color=BG_INPUT,
+                progress_color=ACCENT_EMERALD if r_idx == 0 else "#3b82f6"
+            )
+            pbar.grid(row=1, column=0, sticky="ew", pady=(6, 8))
+            pbar.set(min(1.0, max(0.02, overall_pct / 100.0)))
+
+            # Bu sitede hangi derslerin işlenildiğini gösteren etiketler (Ders Hapları / Pills)
+            subj_wrap = ctk.CTkFrame(center_col, fg_color="transparent")
+            subj_wrap.grid(row=2, column=0, sticky="ew")
+
+            ctk.CTkLabel(
+                subj_wrap,
+                text="İşlenilen Dersler:",
+                font=self._font(11, "bold"),
+                text_color=TEXT_MUTED
+            ).pack(side="left", padx=(0, 6))
+
+            if subjs:
+                for s_item in subjs:
+                    s_pill = ctk.CTkFrame(
+                        subj_wrap,
+                        fg_color=BG_INPUT,
+                        border_color=BORDER_SUBTLE,
+                        border_width=1,
+                        corner_radius=7
+                    )
+                    s_pill.pack(side="left", padx=(0, 6), pady=2)
+
+                    ctk.CTkLabel(
+                        s_pill,
+                        text=f"{s_item['icon']} {s_item['name']}: {format_duration_tr(s_item['seconds'])} (%{s_item['percent']})",
+                        font=self._font(11),
+                        text_color="#e4e4e7"
+                    ).pack(padx=8, pady=3)
+            else:
+                ctk.CTkLabel(
+                    subj_wrap,
+                    text="Henüz ders ayrımı kaydedilmedi",
+                    font=self._font(11),
+                    text_color=TEXT_MUTED
+                ).pack(side="left")
 
     def _sync_sources_view(self):
         if not self._sources_built:
             self._build_sources_view_once()
             return
+
+        # Akordiyon Özet Başlığını Canlı Bilgilerle Güncelle
+        ranking = self.engine.get_source_study_ranking()
+        if ranking:
+            top_src = ranking[0]
+            top_name = top_src["name"]
+            top_dur = format_duration_tr(top_src["total_seconds"])
+            top_subj = top_src["top_subject"]
+            if top_subj:
+                top_subj_str = f"En Çok İşlenen Ders: {top_subj['icon']} {top_subj['name']} ({format_duration_tr(top_subj['seconds'])})"
+            else:
+                top_subj_str = "Ders verisi işleniyor"
+            self._source_stats_summary_lbl.configure(
+                text=f"🏆 1. Sırada: {top_name} ({top_dur})  •  {top_subj_str}",
+                text_color=ACCENT_EMERALD_TEXT
+            )
+        else:
+            self._source_stats_summary_lbl.configure(
+                text="Henüz kaynak site çalışma kaydı bulunmuyor. Ders videosu izledikçe analiz burada oluşacaktır.",
+                text_color=TEXT_SECONDARY
+            )
+
+        # Eğer akordiyon açıksa içerik gövdesini de senkronize et
+        if self._source_stats_expanded:
+            self._render_source_stats_accordion_body()
 
         for w in self._sources_list_frame.winfo_children():
             w.destroy()
