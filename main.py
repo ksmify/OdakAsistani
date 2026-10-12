@@ -31,6 +31,7 @@ try:
 except Exception:
     pass
 
+import tkinter as tk
 import customtkinter as ctk
 from PIL import Image, ImageDraw, ImageFont
 import pystray
@@ -388,9 +389,13 @@ class OdakAsistaniApp(ctk.CTk):
         self._subject_badge_icons = {}
         self.reward_popup_win = None
         self.emergency_confirm_win = None
-        self.break_settings_win = None
-        self.custom_lock_win = None
         self.tutorial_win = None
+        self.tutorial_overlay = None
+        self._tutorial_anim_job = None
+        self._tutorial_particles = []
+        self._tutorial_step = 0
+        self._tutorial_step_start_t = 0.0
+        self._anim_slide_x = 0.0
 
         # Zero-Flicker (In-Place) görünüm referansları ve imza önbellekleri
         self._stats_built = False
@@ -3179,326 +3184,360 @@ class OdakAsistaniApp(ctk.CTk):
             command=_on_save_lock
         ).grid(row=0, column=1, sticky="ew", padx=(8, 0))
 
+    def _close_tutorial_overlay(self):
+        """Eğitim katmanını kapatır ve animasyon döngüsünü sonlandırır."""
+        if getattr(self, "_tutorial_anim_job", None):
+            try:
+                self.after_cancel(self._tutorial_anim_job)
+            except Exception:
+                pass
+            self._tutorial_anim_job = None
+        self._tutorial_particles.clear()
+        if getattr(self, "tutorial_overlay", None) is not None:
+            try:
+                self.tutorial_overlay.destroy()
+            except Exception:
+                pass
+            self.tutorial_overlay = None
+
     def _open_tutorial_popup(self):
-        """Kullanıcının NASIL ÇALIŞIR.txt rehberine dayalı modern, 7 adımlı, animasyonlu öğretici modalı."""
-        if self.tutorial_win is not None and self.tutorial_win.winfo_exists():
-            self._force_window_on_top(self.tutorial_win, 650, 560, break_fullscreen=True)
+        """Ana ekranı kaplayan, 60 FPS sinematik vektörel animasyonlu eğitim sahnesi."""
+        if getattr(self, "tutorial_overlay", None) is not None:
+            try:
+                self.tutorial_overlay.lift()
+            except Exception:
+                pass
             return
 
-        pop = ctk.CTkToplevel(self)
-        pop.title("Odak Asistanı — Nasıl Çalışır? (Öğretici Rehber)")
-        pop.geometry("650x560")
-        pop.resizable(False, False)
-        pop.configure(fg_color=BG_CANVAS)
-        pop.attributes("-topmost", True)
-        pop.after(50, lambda: apply_windows_dark_titlebar(pop))
+        self._tutorial_step = 0
+        self._tutorial_step_start_t = time.time()
+        self._tutorial_particles.clear()
+        self._anim_slide_x = 0.0
 
-        icon_path = os.path.join(BASE_DIR, "odak_icon.ico")
-        if os.path.exists(icon_path):
-            try:
-                pop.iconbitmap(icon_path)
-            except Exception:
-                pass
+        # 1. Ana Pencerenin Tamamını Kaplayan Karartma & Sunum Katmanı
+        overlay = ctk.CTkFrame(self, fg_color="#09090c", corner_radius=0)
+        overlay.place(x=0, y=0, relwidth=1.0, relheight=1.0)
+        overlay.lift()
+        self.tutorial_overlay = overlay
 
-        pop.update_idletasks()
-        sw = pop.winfo_screenwidth()
-        sh = pop.winfo_screenheight()
-        x = max(20, (sw - 650) // 2)
-        y = max(20, (sh - 560) // 2)
-        pop.geometry(f"650x560+{x}+{y}")
+        # Üst Çubuk (Başlık Rozeti + Adım İndikatörü + Kapat Butonu)
+        top_bar = ctk.CTkFrame(overlay, fg_color="transparent")
+        top_bar.pack(fill="x", padx=28, pady=(18, 8))
 
-        self.tutorial_win = pop
+        top_left = ctk.CTkFrame(top_bar, fg_color="transparent")
+        top_left.pack(side="left")
 
-        def _close_tutorial():
-            try:
-                pop.destroy()
-            except Exception:
-                pass
-            self.tutorial_win = None
+        app_badge = ctk.CTkFrame(top_left, fg_color="#181822", corner_radius=10, border_color="#2e2e42", border_width=1)
+        app_badge.pack(side="left")
+        ctk.CTkLabel(
+            app_badge,
+            text="🎓 ODAK ASİSTANI EĞİTİM REHBERİ",
+            font=self._font(11, "bold"),
+            text_color="#10b981"
+        ).pack(padx=12, pady=4)
 
-        pop.protocol("WM_DELETE_WINDOW", _close_tutorial)
+        step_tag_lbl = ctk.CTkLabel(
+            top_left,
+            text="",
+            font=self._font(12, "bold"),
+            text_color=TEXT_SECONDARY
+        )
+        step_tag_lbl.pack(side="left", padx=(14, 0))
 
+        close_btn = ctk.CTkButton(
+            top_bar,
+            text="✕ Eğitimi Kapat / Atla",
+            font=self._font(12, "bold"),
+            fg_color="#181820",
+            hover_color="#272733",
+            text_color=TEXT_SECONDARY,
+            height=34,
+            corner_radius=10,
+            command=self._close_tutorial_overlay
+        )
+        close_btn.pack(side="right")
+
+        # Orta Ana Sahne (İki Bölmeli Grid: Sol = 60 FPS Canvas, Sağ = Modern Bilgi Kartı)
+        body_grid = ctk.CTkFrame(overlay, fg_color="transparent")
+        body_grid.pack(fill="both", expand=True, padx=28, pady=(6, 12))
+        body_grid.grid_columnconfigure(0, weight=1)
+        body_grid.grid_columnconfigure(1, weight=1)
+        body_grid.grid_rowconfigure(0, weight=1)
+
+        # Sol Görsel Animasyon Kartı (Canvas)
+        canvas_card = ctk.CTkFrame(
+            body_grid,
+            fg_color="#0f0f15",
+            corner_radius=20,
+            border_color="#20202c",
+            border_width=1
+        )
+        canvas_card.grid(row=0, column=0, sticky="nsew", padx=(0, 12), pady=0)
+        canvas_card.pack_propagate(False)
+
+        anim_canvas = tk.Canvas(
+            canvas_card,
+            bg="#0f0f15",
+            highlightthickness=0,
+            bd=0
+        )
+        anim_canvas.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Sağ Metin & Açıklama Kartı
+        text_card = ctk.CTkFrame(
+            body_grid,
+            fg_color="#12121a",
+            corner_radius=20,
+            border_color="#242434",
+            border_width=1
+        )
+        text_card.grid(row=0, column=1, sticky="nsew", padx=(12, 0), pady=0)
+
+        text_inner = ctk.CTkFrame(text_card, fg_color="transparent")
+        text_inner.pack(fill="both", expand=True, padx=28, pady=24)
+
+        cat_pill = ctk.CTkFrame(text_inner, fg_color="#1c1c28", corner_radius=8, border_color="#323246", border_width=1)
+        cat_pill.pack(anchor="w", pady=(0, 10))
+        cat_pill_lbl = ctk.CTkLabel(
+            cat_pill,
+            text="",
+            font=self._font(11, "bold"),
+            text_color="#34d399"
+        )
+        cat_pill_lbl.pack(padx=10, pady=3)
+
+        title_lbl = ctk.CTkLabel(
+            text_inner,
+            text="",
+            font=self._font(22, "bold"),
+            text_color=TEXT_PRIMARY,
+            justify="left",
+            anchor="w",
+            wraplength=460
+        )
+        title_lbl.pack(anchor="w", fill="x", pady=(0, 14))
+
+        body_lbl = ctk.CTkLabel(
+            text_inner,
+            text="",
+            font=self._font(13),
+            text_color="#e4e4e7",
+            justify="left",
+            anchor="nw",
+            wraplength=460
+        )
+        body_lbl.pack(anchor="w", fill="both", expand=True, pady=(0, 14))
+
+        tip_box = ctk.CTkFrame(text_inner, fg_color="#0a0a0f", corner_radius=12, border_color="#20202e", border_width=1)
+        tip_box.pack(fill="x", pady=(0, 4))
+        tip_lbl = ctk.CTkLabel(
+            tip_box,
+            text="",
+            font=self._font(11, "bold"),
+            text_color="#34d399",
+            justify="left",
+            anchor="w",
+            wraplength=430
+        )
+        tip_lbl.pack(fill="x", padx=14, pady=12)
+
+        # Alt Navigasyon Çubuğu (Geri / Dot İndikatörleri / İleri)
+        bottom_bar = ctk.CTkFrame(overlay, fg_color="transparent")
+        bottom_bar.pack(fill="x", padx=28, pady=(0, 20))
+        bottom_bar.grid_columnconfigure(0, weight=1)
+        bottom_bar.grid_columnconfigure(1, weight=2)
+        bottom_bar.grid_columnconfigure(2, weight=1)
+
+        prev_btn = ctk.CTkButton(
+            bottom_bar,
+            text="← Geri",
+            font=self._font(12, "bold"),
+            fg_color="#1c1c26",
+            hover_color="#292938",
+            text_color=TEXT_PRIMARY,
+            width=95,
+            height=38,
+            corner_radius=12
+        )
+        prev_btn.grid(row=0, column=0, sticky="w")
+
+        dots_box = ctk.CTkFrame(bottom_bar, fg_color="transparent")
+        dots_box.grid(row=0, column=1)
+
+        next_btn = ctk.CTkButton(
+            bottom_bar,
+            text="İlerle →",
+            font=self._font(13, "bold"),
+            fg_color=ACCENT_WHITE,
+            hover_color="#e4e4e7",
+            text_color=BG_CANVAS,
+            width=130,
+            height=38,
+            corner_radius=12
+        )
+        next_btn.grid(row=0, column=2, sticky="e")
+
+        # 10 Özel Eğitim Bölümü (Kullanıcının vizyonuna tam uyumlu 1. adımın 3 parçaya bölünmüş hali)
         steps = [
             {
-                "icon": "🎓",
-                "tag": "ADIM 1 / 7  •  GENEL BAKIŞ & İLK KİLİT",
-                "badge": "Katı Koruma",
+                "tag": "BÖLÜM 1 / 10  •  BAŞLANGIÇ & VİZYON",
+                "badge": "Odak Felsefesi",
                 "badge_color": "#10b981",
-                "title": "Odak Asistanı'na Hoş Geldiniz!",
+                "title": "Odak Asistanı Nasıl Çalışır?",
                 "body": (
-                    "Odak Asistanı; YKS, sınav hazırlığı ve derin odaklanma gerektiren çalışmalarınız için "
-                    "bilgisayarınızdaki dikkat dağıtıcı tüm unsurları tavizsiz şekilde engelleyen bir disiplin aracıdır.\n\n"
-                    "Uygulamayı açtığınızda ve ilk kilidinizi koyduğunuzda, dopamin hilesi yapabileceğiniz tüm siteler "
-                    "ve platformlar otomatik olarak Asistan tarafından kapatılır ve kilitlenir."
+                    "Dopamin tuzaklarına, ders çalışırken gelen erteleme krizlerine ve dikkat dağınıklığına son!\n\n"
+                    "Odak Asistanı; YKS, okul ve kariyer sınavlarına hazırlanan öğrenciler için dikkat dağıtıcı tüm unsurları "
+                    "hedefinize kadar katı korumayla kilitler ve çalışma masasında %100 disiplin sağlar."
                 ),
-                "tip": '💡 Üstteki komut kutusuna "Fortnite\'ı kapat", "tiktok.com kapat" veya "youtube.com/shorts kapat" yazıp Kilitle\'ye basabilirsiniz.',
+                "tip": "💡 Sol tarafta süzülen neon Odak Asistanı amblemi kesintisiz odaklanmayı temsil eder. Adım adım tüm sistemi keşfetmek için 'İlerle'ye basın!",
             },
             {
-                "icon": "💻",
-                "tag": "ADIM 2 / 7  •  MENÜLER",
-                "badge": "Süreç Yönetimi",
-                "badge_color": "#6366f1",
-                "title": "Uygulamalarım & Şu An Açık",
+                "tag": "BÖLÜM 2 / 10  •  HEDEF & DİSİPLİN",
+                "badge": "YKS & Sınav Hazırlığı",
+                "badge_color": "#f59e0b",
+                "title": "YKS ve Sınav Hazırlığı İçin Tasarlandı",
                 "body": (
-                    "• Uygulamalarım: Cihazınızdaki tüm kurulu uygulamaları eksiksiz listeler. Buradan bir uygulamayı kilitleyebilir "
-                    "ve bir sonraki mola vaktinize kadar ona veda edebilirsiniz. (Uygulama seçerken dikkatli olun, kilit kalkana kadar açılamaz!)\n\n"
-                    "• Şu An Açık: An itibarıyla arka planda ve ekranda çalışan tüm süreçleri gösterir; tek tıkla odak bozucuları sonlandırıp kilitleyebilirsiniz."
+                    "YKS (TYT / AYT), KPSS, LGS ve yoğun odak kamplarında başarı; iradenizi test eden dopamin kaynaklarını "
+                    "bilgisayarınızdan tamamen temizlemekle başlar.\n\n"
+                    "Odak Asistanı; sınav sabahına kadar tavizsiz çalışan, motivasyonunuz düştüğünde bile sizi hedeften saptırmayan dijital korumanızdır."
                 ),
-                "tip": "💡 Bir uygulamayı sildiğinizde kilit kalkar; ancak uygulama cihazınızda var olduğu sürece koruma tavizsiz devam eder.",
+                "tip": "🌟 Solda parıltılı izler bırakarak süzülen ÖSYM/YKS rozeti, sınav hedefinize kadar dikkatinizin asla dağılmayacağını simgeler.",
             },
             {
-                "icon": "🛡️",
-                "tag": "ADIM 3 / 7  •  MENÜLER",
-                "badge": "Dopamin Bariyeri",
+                "tag": "BÖLÜM 3 / 10  •  OTOMATİK KORUMA",
+                "badge": "İlk Kilit & Kalkan",
+                "badge_color": "#06b6d4",
+                "title": "İlk Kilidinizi Koyduğunuz An...",
+                "body": (
+                    "Uygulamayı açtığınızda ve ilk kilidinizi koyduğunuz anda dopamin hilesi yapabileceğiniz tüm siteler ve oyunlar "
+                    "Odak Asistanı tarafından otomatik olarak kapatılır ve katı korumaya alınır!\n\n"
+                    "Kalkan devreye girdiği andan itibaren hedefinize kadar sistem tavizsiz korunur."
+                ),
+                "tip": "🛡️ Soldaki nabız gibi atan neon kalkan ve kilitlenen halka, siz ekstra hiçbir ayar yapmasanız bile korumanın aktif olduğunu gösterir.",
+            },
+            {
+                "tag": "BÖLÜM 4 / 10  •  HIZLI KOMUT",
+                "badge": "Tek Satırla Kilitle",
                 "badge_color": "#f43f5e",
+                "title": "Tek Cümleyle Kapat ve Kilitle",
+                "body": (
+                    "En üstte yer alan komut kutusuna kapatmak istediğiniz şeyleri konuşur gibi yazabilirsiniz:\n\n"
+                    "• \"Fortnite'ı kapat\"\n"
+                    "• \"tiktok.com kapat\"\n"
+                    "• \"youtube.com/shorts kapat\"\n\n"
+                    "Yazıp Kilitle'ye bastığınızda algılanan tüm oyunlar ve siteler anında yasaklanır!"
+                ),
+                "tip": "❌ Soldaki kartlarda gördüğünüz gibi; kapatılan tüm oyun ve sitelere anında kırmızı X damgası vurulur ve açılmaları imkansız hale gelir.",
+            },
+            {
+                "tag": "BÖLÜM 5 / 10  •  CİHAZ DENETİMİ",
+                "badge": "Uygulamalarım & Açık Olanlar",
+                "badge_color": "#6366f1",
+                "title": "Uygulamalarım & Şu An Açık Menüsü",
+                "body": (
+                    "• Uygulamalarım: Bilgisayarınızdaki tüm oyun ve uygulamaları eksiksiz listeler. Kilitlemek istediğinize bastığınızda "
+                    "bir sonraki mola vaktine kadar ona veda edersiniz!\n\n"
+                    "• Şu An Açık: An itibarıyla arka planda çalışan süreçleri gösterir; tek tıkla odak bozucuları anında sonlandırabilirsiniz."
+                ),
+                "tip": "⚠️ Uygulama kilitlerken dikkatli olun. Kilitlenen bir oyun veya program belirlediğiniz kilit süresi bitene veya mola barajı açılana kadar açılamaz.",
+            },
+            {
+                "tag": "BÖLÜM 6 / 10  •  DOPAMİN BARİYERİ",
+                "badge": "Asistan'ın Seçtikleri",
+                "badge_color": "#ec4899",
                 "title": "Asistan'ın Seçtikleri & Web Siteleri",
                 "body": (
-                    "• Asistan'ın Seçtikleri: Uygulamamızın belirlediği zararlı ve dikkat dağıtıcı sitelerin tamamı burada tek pakette toplanmıştır. "
-                    "Siteler özenle seçilmiştir; Reels, Shorts, oyun, anime, yayın ve alışveriş gibi dopamin tuzakları tamamen engellenmiştir.\n\n"
-                    "• Web Siteleri: Asistan paketine ek olarak bireysel olarak kapatabileceğiniz yüzlerce sistem önerisi site burada yer alır."
+                    "• Asistan'ın Seçtikleri: Reels, Shorts, web oyunları, dizi/film, anime, yayın ve alışveriş platformları tek bir dev pakette toplanmıştır. "
+                    "420+ alan adı özenle engellenmiştir.\n\n"
+                    "• Web Siteleri: Asistan paketine ek olarak bireysel olarak kapatabileceğiniz yüzlerce sistem önerisi site listelenir."
                 ),
-                "tip": "💡 Dopamininizi gün boyu boşa harcamak yerine, yalnızca çalışma hedefinizi tamamlayıp Mola Barajı'ndan alacağınız ödülle tetikleyin!",
+                "tip": "🧠 Dopamininizi gün boyu sanal kaydırmalarla tüketmeyin. Dopamininizi yalnızca çalışarak hak ettiğiniz molalarda kullanın!",
             },
             {
-                "icon": "📊",
-                "tag": "ADIM 4 / 7  •  MÜFREDAT TAKİBİ",
-                "badge": "Akıllı Sayaç",
-                "badge_color": "#06b6d4",
-                "title": "Ders Sürelerim & Otomatik Video Ölçümü",
+                "tag": "BÖLÜM 7 / 10  •  AKILLI TAKİP",
+                "badge": "Müfredat & Canlı Takip",
+                "badge_color": "#10b981",
+                "title": "Ders Sürelerim & YouTube Canlı Takibi",
                 "body": (
-                    "Türkiye Müfredatında yer alan tüm ana dersleri (Matematik, Fizik, Türkçe, Biyoloji vb.) burada görebilirsiniz.\n\n"
-                    "Uygulama, YouTube'dan veya tanımladığınız bir kaynak siteden izlediğiniz ders videolarını saniye saniye otomatik ölçer ve ilgili derse işler.\n\n"
-                    "Kitaptan soru çözümü veya konu çalışması yaptığınızda ise her dersin yanındaki 'Manuel Sayacı Başlat' butonunu kullanın."
+                    "Türkiye Müfredatındaki tüm ana dersler (Matematik, Fizik, Türkçe, Biyoloji vb.) burada yer alır.\n\n"
+                    "YouTube'dan veya kaynak sitelerden ders videosu izlediğinizde çalışma süreniz saniyesi saniyesine otomatik ölçülür ve ilgili derse işlenir!\n\n"
+                    "Kitaptan soru çözerken ise Manuel Sayacı başlatın."
                 ),
-                "tip": "💡 Soru çözdüğünüzde kümülatif soru kutusuna sayıyı yazıp ekleyebilir; soru çözülmeyen konu periyotlarında ise 'Soru Çözmedim' butonuna basabilirsiniz.",
+                "tip": "⏱️ Video durdurulduğunda (Pause) veya sekme değiştirildiğinde sayaç 1 saniye içinde durur; hoca nefes aldığında sürenizi kesmez.",
             },
             {
-                "icon": "🌐",
-                "tag": "ADIM 5 / 7  •  DİNAMİK KAYNAK SİSTEMİ",
-                "badge": "Özel Video Algılayıcı",
+                "tag": "BÖLÜM 8 / 10  •  ÖZEL VİDEO SİSTEMİ",
+                "badge": "Kaynak Siteler",
                 "badge_color": "#8b5cf6",
-                "title": "Kaynak Siteler",
+                "title": "Kaynak Siteler (Dinamik Video Algılayıcı)",
                 "body": (
-                    "Uygulama başlangıçta YouTube'u sabit ana kaynak olarak tanır (YouTube asla silinemez veya değiştirilemez).\n\n"
-                    "Ders videosu izlediğiniz diğer siteleri (Örn: Kunduz, Doping Hafıza, OGM Materyal, Khan Academy vb.) bu menüden dilediğiniz gibi ekleyebilirsiniz.\n\n"
-                    "Eklediğiniz her kaynağın hangi dersinize işlemesini istediğinizi dürüstçe seçin; izlediğiniz videolar doğrudan o dersin istatistiğine yazılsın."
+                    "Uygulama YouTube'u sabit ana kaynak olarak görür (YouTube asla silinemez).\n\n"
+                    "Ders videosu izlediğiniz diğer siteleri (Kunduz, Doping Hafıza, OGM Materyal, Khan Academy vb.) bu menüden dilediğiniz gibi ekleyin "
+                    "ve hangi derse işlemesini istediğinizi seçin!"
                 ),
-                "tip": "💡 Kaynak eklerken alan adını yazıp kategorisini seçtiğinizde, sistem o sitede video oynatıldığında ders sürenizi otomatik saymaya başlar.",
+                "tip": "🎯 Eklediğiniz siteden video oynatıldığında, sistem o dersin süresine ve Mola Barajına doğrudan ekleme yapar.",
             },
             {
-                "icon": "🔒",
-                "tag": "ADIM 6 / 7  •  KİLİT KURALLARI",
-                "badge": "Tavizsiz Disiplin",
+                "tag": "BÖLÜM 9 / 10  •  KİLİT KURALLARI",
+                "badge": "Tavizsiz Kural",
                 "badge_color": "#e11d48",
-                "title": "Kilit Hedefi & Özel Kilit Seçici",
+                "title": "Kilit Hedefi & Kısaltamama Kuralı",
                 "body": (
-                    "Sağ üstteki sayaç butonuna tıklayarak TYT 2027, LGS, KPSS veya istediğiniz özel bir tarih ve saate kilit koyabilirsiniz.\n\n"
-                    "⚠️ ALTIN KURAL: Koyduğunuz kilit süresini kısaltmanıza ASLA izin verilmez! Yalnızca daha ileri bir tarihe uzatabilirsiniz. "
-                    "Bu yüzden hedefinizi kararlı ve gerçekçi şekilde belirleyin.\n\n"
+                    "Sağ üstteki sayaçtan TYT 2027, KPSS veya dilediğiniz özel bir tarihi hedef belirleyebilirsiniz.\n\n"
+                    "⚠️ ALTIN KURAL: Koyduğunuz kilit süresini kısaltmanıza ASLA izin verilmez! Yalnızca daha ileri bir tarihe uzatabilirsiniz.\n\n"
                     "Kilit süreniz dolduğunda ise sayaç yerini otomatik olarak 'Yeni kilit oluştur.' butonuna bırakır."
                 ),
-                "tip": "💡 Kilit süresi dolana kadar (ister 1 gün ister 1 yıl olsun) geri sayım devam eder; süre dolmadan buton yazısı değişmez.",
+                "tip": "🔓 Kilit süresi dolana kadar (ister 1 gün ister 1 yıl olsun) geri sayım devam eder; süre dolmadan buton yazısı asla değişmez.",
             },
             {
-                "icon": "🚨",
-                "tag": "ADIM 7 / 7  •  MOLA VE ACİL DURUM",
-                "badge": "Ödül & Acil Çıkış",
+                "tag": "BÖLÜM 10 / 10  •  MOLA VE ACİL ÇIKIŞ",
+                "badge": "Mola Barajı & Acil Durum",
                 "badge_color": "#f59e0b",
                 "title": "Haftalık Acil Durum & Mola Barajı",
                 "body": (
                     "• Acil Durum (30 Dk): Beklenmedik, hayati durumlarda sağ üstteki Acil Durum butonuna basabilirsiniz. "
-                    "Bu hak HAFTADA YALNIZCA 1 KEZ kullanılabilir ve 30 dakika sonra kilitler otomatik geri gelir.\n\n"
-                    "• Mola Barajı: Belirlediğiniz çalışma hedefini (Örn: 50 dk) doldurduğunuzda ödül ekranı açılır. "
-                    "Kilitli sitelerinizden birini seçip ödül molanızı (Örn: 10 dk) hak ederek kullanabilirsiniz!"
+                    "Bu hak HAFTADA YALNIZCA 1 KEZ kullanılır ve 30 dakika sonra kilitler otomatik geri gelir.\n\n"
+                    "• Mola Barajı: Hedef ders sürenizi (ör. 50 dk) doldurduğunuzda ödül mola sandığı açılır; kilitli sitelerden birini seçip mola hakkınızı kullanırsınız!"
                 ),
-                "tip": "💡 Artık tüm sisteme hakimsiniz! Hedefinize odaklanın, ertelemeyi bırakın ve harika bir çalışma süreci geçirin.",
+                "tip": "🚀 Artık tüm sisteme ve kurallara hakimsiniz! Hedefinize odaklanın, ertelemeyi bırakın ve başarıya yürüyün.",
             },
         ]
 
-        current_step = [0]
-
-        # Üst Çubuk: İkon, Adım Sayacı ve Kategori Rozeti
-        top_header = ctk.CTkFrame(pop, fg_color="transparent")
-        top_header.pack(fill="x", padx=24, pady=(20, 10))
-
-        tag_lbl = ctk.CTkLabel(
-            top_header,
-            text="",
-            font=self._font(12, "bold"),
-            text_color=TEXT_SECONDARY,
-            anchor="w"
-        )
-        tag_lbl.pack(side="left")
-
-        badge_frame = ctk.CTkFrame(top_header, fg_color="#18181e", corner_radius=8, border_color="#2e2e38", border_width=1)
-        badge_frame.pack(side="right")
-        badge_lbl = ctk.CTkLabel(
-            badge_frame,
-            text="",
-            font=self._font(11, "bold"),
-            text_color="#10b981"
-        )
-        badge_lbl.pack(padx=10, pady=3)
-
-        # Orta Ana Kart
-        main_card = ctk.CTkFrame(
-            pop,
-            fg_color=BG_SURFACE,
-            border_color=BORDER_DEFAULT,
-            border_width=1,
-            corner_radius=16
-        )
-        main_card.pack(fill="both", expand=True, padx=24, pady=(0, 16))
-        main_card.pack_propagate(False)
-
-        title_row = ctk.CTkFrame(main_card, fg_color="transparent")
-        title_row.pack(fill="x", padx=20, pady=(18, 10))
-
-        icon_lbl = ctk.CTkLabel(
-            title_row,
-            text="",
-            font=self._font(28)
-        )
-        icon_lbl.pack(side="left", padx=(0, 10))
-
-        title_lbl = ctk.CTkLabel(
-            title_row,
-            text="",
-            font=self._font(18, "bold"),
-            text_color=TEXT_PRIMARY,
-            anchor="w"
-        )
-        title_lbl.pack(side="left")
-
-        body_lbl = ctk.CTkLabel(
-            main_card,
-            text="",
-            font=self._font(13),
-            text_color=TEXT_PRIMARY,
-            justify="left",
-            anchor="nw",
-            wraplength=560
-        )
-        body_lbl.pack(fill="both", expand=True, padx=20, pady=(0, 10))
-
-        tip_card = ctk.CTkFrame(
-            main_card,
-            fg_color=BG_INPUT,
-            border_color=BORDER_SUBTLE,
-            border_width=1,
-            corner_radius=10
-        )
-        tip_card.pack(fill="x", padx=20, pady=(0, 18))
-
-        tip_lbl = ctk.CTkLabel(
-            tip_card,
-            text="",
-            font=self._font(11, "bold"),
-            text_color=ACCENT_EMERALD_TEXT,
-            justify="left",
-            anchor="w",
-            wraplength=540
-        )
-        tip_lbl.pack(fill="x", padx=14, pady=10)
-
-        # Alt Gezinme Çubuğu (Atla / Dots / Geri / İlerle)
-        nav_bar = ctk.CTkFrame(pop, fg_color="transparent")
-        nav_bar.pack(fill="x", padx=24, pady=(0, 20))
-        nav_bar.grid_columnconfigure(0, weight=1)
-        nav_bar.grid_columnconfigure(1, weight=2)
-        nav_bar.grid_columnconfigure(2, weight=1)
-
-        # Sol: Atla
-        skip_btn = ctk.CTkButton(
-            nav_bar,
-            text="Atla",
-            font=self._font(12, "bold"),
-            fg_color=BG_ELEVATED,
-            hover_color=BG_ELEVATED_HOVER,
-            text_color=TEXT_SECONDARY,
-            width=80,
-            height=36,
-            corner_radius=10,
-            command=_close_tutorial
-        )
-        skip_btn.grid(row=0, column=0, sticky="w")
-
-        # Orta: Dot Göstergeleri
-        dots_container = ctk.CTkFrame(nav_bar, fg_color="transparent")
-        dots_container.grid(row=0, column=1)
-
         dot_labels = []
         for i in range(len(steps)):
-            dl = ctk.CTkLabel(
-                dots_container,
-                text="●",
-                font=self._font(14, "bold"),
-                text_color=TEXT_MUTED,
-                width=16
-            )
-            dl.pack(side="left", padx=3)
+            dl = ctk.CTkLabel(dots_box, text="●", font=self._font(13, "bold"), text_color="#333344", width=14)
+            dl.pack(side="left", padx=2)
             dot_labels.append(dl)
 
-        # Sağ: Geri & İlerle
-        right_flow = ctk.CTkFrame(nav_bar, fg_color="transparent")
-        right_flow.grid(row=0, column=2, sticky="e")
-
-        prev_btn = ctk.CTkButton(
-            right_flow,
-            text="← Geri",
-            font=self._font(12, "bold"),
-            fg_color=BG_ELEVATED,
-            hover_color=BG_ELEVATED_HOVER,
-            text_color=TEXT_PRIMARY,
-            width=85,
-            height=36,
-            corner_radius=10
-        )
-        prev_btn.pack(side="left", padx=(0, 8))
-
-        next_btn = ctk.CTkButton(
-            right_flow,
-            text="İlerle →",
-            font=self._font(12, "bold"),
-            fg_color=ACCENT_WHITE,
-            hover_color="#e4e4e7",
-            text_color=BG_CANVAS,
-            width=115,
-            height=36,
-            corner_radius=10
-        )
-        next_btn.pack(side="left")
-
-        def _update_view():
-            idx = current_step[0]
+        def _update_step_ui():
+            idx = self._tutorial_step
             st = steps[idx]
+            self._tutorial_step_start_t = time.time()
 
-            # Animasyonlu pürüzsüz geçiş hissi: Önce hafif soluklaşma, sonra canlandırma
-            tag_lbl.configure(text=st["tag"])
-            badge_lbl.configure(text=st["badge"], text_color=st.get("badge_color", ACCENT_EMERALD_TEXT))
-            icon_lbl.configure(text=st["icon"])
+            step_tag_lbl.configure(text=st["tag"])
+            cat_pill_lbl.configure(text=st["badge"], text_color=st.get("badge_color", "#34d399"))
             title_lbl.configure(text=st["title"])
             body_lbl.configure(text=st["body"])
             tip_lbl.configure(text=st["tip"])
 
             for d_i, d_lbl in enumerate(dot_labels):
                 if d_i == idx:
-                    d_lbl.configure(text_color=ACCENT_EMERALD_TEXT, font=self._font(16, "bold"))
+                    d_lbl.configure(text_color="#10b981", font=self._font(16, "bold"))
                 else:
-                    d_lbl.configure(text_color="#3f3f46", font=self._font(12))
+                    d_lbl.configure(text_color="#333344", font=self._font(11))
 
             if idx == 0:
-                prev_btn.configure(state="disabled", fg_color="transparent", text_color="#3f3f46")
+                prev_btn.configure(state="disabled", fg_color="transparent", text_color="#3a3a4c")
             else:
-                prev_btn.configure(state="normal", fg_color=BG_ELEVATED, text_color=TEXT_PRIMARY)
+                prev_btn.configure(state="normal", fg_color="#1c1c26", text_color=TEXT_PRIMARY)
 
             if idx == len(steps) - 1:
                 next_btn.configure(
-                    text="Anladım, Başla! ✨",
+                    text="Anladım, Başla! 🚀",
                     fg_color=ACCENT_EMERALD,
                     hover_color="#059669",
                     text_color="#052e16",
-                    width=140
+                    width=165
                 )
             else:
                 next_btn.configure(
@@ -3506,25 +3545,328 @@ class OdakAsistaniApp(ctk.CTk):
                     fg_color=ACCENT_WHITE,
                     hover_color="#e4e4e7",
                     text_color=BG_CANVAS,
-                    width=100
+                    width=130
                 )
 
-        def _on_prev():
-            if current_step[0] > 0:
-                current_step[0] -= 1
-                _update_view()
+        def _go_prev():
+            if self._tutorial_step > 0:
+                self._tutorial_step -= 1
+                _update_step_ui()
 
-        def _on_next():
-            if current_step[0] < len(steps) - 1:
-                current_step[0] += 1
-                _update_view()
+        def _go_next():
+            if self._tutorial_step < len(steps) - 1:
+                self._tutorial_step += 1
+                _update_step_ui()
             else:
-                _close_tutorial()
+                self._close_tutorial_overlay()
 
-        prev_btn.configure(command=_on_prev)
-        next_btn.configure(command=_on_next)
+        prev_btn.configure(command=_go_prev)
+        next_btn.configure(command=_go_next)
 
-        _update_view()
+        _update_step_ui()
+
+        # ==============================================================
+        # 60 FPS SİNEMATİK ANİMASYON MOTORU (Canvas Render Loop)
+        # ==============================================================
+        def _render_canvas():
+            if getattr(self, "tutorial_overlay", None) is None:
+                return
+
+            try:
+                w = anim_canvas.winfo_width()
+                h = anim_canvas.winfo_height()
+            except Exception:
+                return
+
+            if w < 50 or h < 50:
+                self._tutorial_anim_job = self.after(30, _render_canvas)
+                return
+
+            anim_canvas.delete("all")
+            t = time.time()
+            idx = self._tutorial_step
+            cx, cy = w / 2, h / 2
+
+            # İnce Arka Plan Izgara / Parıltı
+            grid_gap = 40
+            for gx in range(0, w, grid_gap):
+                anim_canvas.create_line(gx, 0, gx, h, fill="#12121b", width=1)
+            for gy in range(0, h, grid_gap):
+                anim_canvas.create_line(0, gy, w, gy, fill="#12121b", width=1)
+
+            # ----------------------------------------------------------
+            # SAHNE 1 (0): Süzülen Odak Asistanı Neon Amblemi
+            # ----------------------------------------------------------
+            if idx == 0:
+                bob_y = cy + math.sin(t * 3.2) * 14
+                pulse_r = 75 + math.sin(t * 4.0) * 8
+
+                # Dış genişleyen halkalar
+                anim_canvas.create_oval(cx - pulse_r, bob_y - pulse_r, cx + pulse_r, bob_y + pulse_r, outline="#16382b", width=2)
+                anim_canvas.create_oval(cx - 56, bob_y - 56, cx + 56, bob_y + 56, outline="#10b981", width=3)
+                anim_canvas.create_oval(cx - 36, bob_y - 36, cx + 36, bob_y + 36, fill="#0d241b", outline="#34d399", width=2)
+                anim_canvas.create_oval(cx - 16, bob_y - 16, cx + 16, bob_y + 16, fill="#34d399", outline="#ffffff", width=1)
+
+                # Dönen yörünge uyduları
+                for orb_i in range(4):
+                    ang = t * 2.2 + orb_i * (math.pi / 2)
+                    ox = cx + math.cos(ang) * (pulse_r + 12)
+                    oy = bob_y + math.sin(ang) * (pulse_r + 12)
+                    anim_canvas.create_oval(ox - 4, oy - 4, ox + 4, oy + 4, fill="#34d399", outline="#ffffff")
+
+                anim_canvas.create_text(cx, bob_y + pulse_r + 32, text="ODAK ASİSTANI", font=("Segoe UI", 16, "bold"), fill="#f4f4f6")
+                anim_canvas.create_text(cx, bob_y + pulse_r + 54, text="Katı Odak & Disiplin Kalkanı", font=("Segoe UI", 11), fill="#a1a1aa")
+
+            # ----------------------------------------------------------
+            # SAHNE 2 (1): Süzülen ÖSYM / YKS Rozeti + Parıltılı Altın İz (Trail)
+            # ----------------------------------------------------------
+            elif idx == 1:
+                badge_x = cx + math.sin(t * 2.0) * 22
+                badge_y = cy + math.cos(t * 2.8) * 16
+
+                # Parçacık üretimi (Golden Particle Trail)
+                if len(self._tutorial_particles) < 45:
+                    self._tutorial_particles.append([
+                        badge_x + (math.sin(t * 11) * 16),
+                        badge_y + (math.cos(t * 13) * 16),
+                        (math.sin(t * 7) * 0.8),
+                        (math.cos(t * 5) * 0.8) + 1.2,
+                        1.0  # life
+                    ])
+
+                # Parçacıkları güncelle ve çiz
+                alive_p = []
+                for p in self._tutorial_particles:
+                    p[0] += p[2]
+                    p[1] += p[3]
+                    p[4] -= 0.025
+                    if p[4] > 0:
+                        pr = max(1.5, p[4] * 5.0)
+                        p_col = "#f59e0b" if p[4] > 0.5 else "#d97706"
+                        anim_canvas.create_oval(p[0] - pr, p[1] - pr, p[0] + pr, p[1] + pr, fill=p_col, outline="")
+                        alive_p.append(p)
+                self._tutorial_particles = alive_p
+
+                # Altın Kalkan / Madalyon Gövdesi
+                bw, bh = 85, 95
+                anim_canvas.create_polygon(
+                    badge_x, badge_y - bh,
+                    badge_x + bw, badge_y - bh * 0.4,
+                    badge_x + bw * 0.7, badge_y + bh * 0.8,
+                    badge_x, badge_y + bh,
+                    badge_x - bw * 0.7, badge_y + bh * 0.8,
+                    badge_x - bw, badge_y - bh * 0.4,
+                    fill="#0f172a", outline="#f59e0b", width=4
+                )
+                anim_canvas.create_oval(badge_x - 48, badge_y - 48, badge_x + 48, badge_y + 48, outline="#fbbf24", width=2)
+                anim_canvas.create_text(badge_x, badge_y - 14, text="ÖSYM", font=("Segoe UI", 16, "bold"), fill="#fde68a")
+                anim_canvas.create_text(badge_x, badge_y + 12, text="YKS 2027", font=("Segoe UI", 14, "bold"), fill="#ffffff")
+                anim_canvas.create_text(badge_x, badge_y + 32, text="TYT / AYT", font=("Segoe UI", 10, "bold"), fill="#f59e0b")
+
+                anim_canvas.create_text(cx, cy + 130, text="HEDEFE ODAKLAN • TAVİZSİZ DİSİPLİN", font=("Segoe UI", 12, "bold"), fill="#fbbf24")
+
+            # ----------------------------------------------------------
+            # SAHNE 3 (2): Canlı Kalkan Nabzı & Kapanan Kilit Animasyonu
+            # ----------------------------------------------------------
+            elif idx == 2:
+                sh_pulse = 10 + math.sin(t * 4.0) * 8
+                # Genişleyen Enerji Dalgaları
+                for w_i in (1, 2, 3):
+                    rw = 90 + w_i * 28 + (math.sin(t * 3.0 + w_i) * 6)
+                    anim_canvas.create_oval(cx - rw, cy - rw, cx + rw, cy + rw, outline="#0d3324", width=1)
+
+                # Kalkan (Shield)
+                anim_canvas.create_polygon(
+                    cx, cy - 100,
+                    cx + 90, cy - 60,
+                    cx + 70, cy + 60,
+                    cx, cy + 110,
+                    cx - 70, cy + 60,
+                    cx - 90, cy - 60,
+                    fill="#091d15", outline="#10b981", width=3
+                )
+
+                # Kilit Mekanizması (Shackle saniyede bir tık diye kapanıyor)
+                lock_cycle = (t - self._tutorial_step_start_t) % 2.0
+                shackle_offset = 0 if lock_cycle > 0.6 else -14
+
+                # Kilit Halkası
+                anim_canvas.create_arc(cx - 28, cy - 45 + shackle_offset, cx + 28, cy + 5 + shackle_offset,
+                                       start=0, extent=180, outline="#e4e4e7", width=6, style="arc")
+                # Kilit Gövdesi
+                anim_canvas.create_rectangle(cx - 36, cy - 10, cx + 36, cy + 42, fill="#1c1c24", outline="#34d399", width=2)
+                anim_canvas.create_oval(cx - 6, cy + 6, cx + 6, cy + 18, fill="#ffffff", outline="")
+                anim_canvas.create_polygon(cx - 4, cy + 16, cx + 4, cy + 16, cx + 6, cy + 28, cx - 6, cy + 28, fill="#ffffff")
+
+                status_txt = "🔒 KORUMA AKTİF • HEPSİ KAPATILDI" if lock_cycle > 0.6 else "⏳ KİLİTLENİYOR..."
+                anim_canvas.create_text(cx, cy + 140, text=status_txt, font=("Segoe UI", 12, "bold"), fill="#34d399")
+
+            # ----------------------------------------------------------
+            # SAHNE 4 (3): Fortnite, TikTok, Shorts + Kırmızı X Vuruşu (❌)
+            # ----------------------------------------------------------
+            elif idx == 3:
+                elapsed = t - self._tutorial_step_start_t
+                card_data = [
+                    {"name": "Fortnite", "sub": "Battle Royale", "col": "#6366f1", "icon": "🎮", "dx": -120},
+                    {"name": "TikTok", "sub": "Sonsuz Kaydırma", "col": "#06b6d4", "icon": "📱", "dx": 0},
+                    {"name": "Shorts", "sub": "Kısa Video", "col": "#ef4444", "icon": "▶", "dx": 120},
+                ]
+
+                anim_canvas.create_text(cx, cy - 120, text='Komut: "Fortnite\'ı kapat, tiktok.com kapat"', font=("Segoe UI", 12, "bold"), fill="#a1a1aa")
+
+                for i, cd in enumerate(card_data):
+                    k_cx = cx + cd["dx"]
+                    k_cy = cy
+
+                    # Kart Zemini
+                    anim_canvas.create_rectangle(k_cx - 50, k_cy - 75, k_cx + 50, k_cy + 75, fill="#14141d", outline="#272738", width=1)
+                    # Rozet / İkon Dairesi
+                    anim_canvas.create_oval(k_cx - 22, k_cy - 52, k_cx + 22, k_cy - 8, fill=cd["col"], outline="")
+                    anim_canvas.create_text(k_cx, k_cy - 30, text=cd["icon"], font=("Segoe UI", 15, "bold"), fill="#ffffff")
+                    anim_canvas.create_text(k_cx, k_cy + 14, text=cd["name"], font=("Segoe UI", 12, "bold"), fill="#ffffff")
+                    anim_canvas.create_text(k_cx, k_cy + 34, text=cd["sub"], font=("Segoe UI", 9), fill="#71717a")
+
+                    # Kırmızı Çarpı Animasyonu (Gecikmeli damgalama efekti)
+                    card_delay = 0.4 + i * 0.35
+                    if elapsed > card_delay:
+                        x_prog = min(1.0, (elapsed - card_delay) * 4.0)
+                        x_len = 38 * x_prog
+                        # Kalın Kırmızı Çarpı Çizimi
+                        anim_canvas.create_line(k_cx - x_len, k_cy - x_len, k_cx + x_len, k_cy + x_len, fill="#f43f5e", width=7, capstyle="round")
+                        anim_canvas.create_line(k_cx + x_len, k_cy - x_len, k_cx - x_len, k_cy + x_len, fill="#f43f5e", width=7, capstyle="round")
+                        # Yasaklandı Etiketi
+                        anim_canvas.create_rectangle(k_cx - 44, k_cy + 52, k_cx + 44, k_cy + 70, fill="#2a0f16", outline="#f43f5e", width=1)
+                        anim_canvas.create_text(k_cx, k_cy + 61, text="YASAKLANDI", font=("Segoe UI", 8, "bold"), fill="#fb7185")
+
+            # ----------------------------------------------------------
+            # SAHNE 5 (4): PC Süreçleri & Çalışan Pencerelerin Kapatılması
+            # ----------------------------------------------------------
+            elif idx == 4:
+                # Monitör Çizimi
+                anim_canvas.create_rectangle(cx - 120, cy - 80, cx + 120, cy + 60, fill="#13131c", outline="#3f3f50", width=2)
+                anim_canvas.create_polygon(cx - 30, cy + 60, cx + 30, cy + 60, cx + 45, cy + 95, cx - 45, cy + 95, fill="#22222e", outline="")
+                anim_canvas.create_rectangle(cx - 60, cy + 95, cx + 60, cy + 102, fill="#3f3f50", outline="")
+
+                # İç Pencereler
+                anim_canvas.create_rectangle(cx - 105, cy - 65, cx - 10, cy + 45, fill="#1c1c28", outline="#2e2e42", width=1)
+                anim_canvas.create_rectangle(cx + 5, cy - 65, cx + 105, cy + 45, fill="#1c1c28", outline="#2e2e42", width=1)
+
+                anim_canvas.create_text(cx - 57, cy - 45, text="Oyun.exe", font=("Segoe UI", 10, "bold"), fill="#fb7185")
+                anim_canvas.create_text(cx + 55, cy - 45, text="Sohbet.exe", font=("Segoe UI", 10, "bold"), fill="#fb7185")
+
+                # Sonlandırma / Kilit İkonları
+                anim_canvas.create_text(cx - 57, cy - 5, text="🔒 KİLİTLİ", font=("Segoe UI", 11, "bold"), fill="#f43f5e")
+                anim_canvas.create_text(cx + 55, cy - 5, text="🔒 KİLİTLİ", font=("Segoe UI", 11, "bold"), fill="#f43f5e")
+
+                anim_canvas.create_text(cx, cy + 130, text="Çalışan Tüm Odak Bozucular Anında Sonlandırılır", font=("Segoe UI", 11, "bold"), fill="#34d399")
+
+            # ----------------------------------------------------------
+            # SAHNE 6 (5): Asistan'ın Seçtikleri (420+ Alan Adı Petek Bariyeri)
+            # ----------------------------------------------------------
+            elif idx == 5:
+                anim_canvas.create_text(cx, cy - 110, text="420+ Alan Adı Tek Pakette Engelli", font=("Segoe UI", 13, "bold"), fill="#ec4899")
+                # Petek / Kalkan Bariyeri
+                for hi, (hx, hy, lbl) in enumerate([
+                    (-75, -45, "Instagram"), (75, -45, "TikTok"),
+                    (-115, 25, "YouTube Reels"), (0, 20, "Web Oyunları"), (115, 25, "Anime/Film"),
+                    (-60, 85, "Twitch"), (60, 85, "Alışveriş")
+                ]):
+                    anim_canvas.create_rectangle(cx + hx - 48, cy + hy - 20, cx + hx + 48, cy + hy + 20, fill="#1a121e", outline="#ec4899", width=1)
+                    anim_canvas.create_text(cx + hx, cy + hy, text=f"🔒 {lbl}", font=("Segoe UI", 9, "bold"), fill="#fbcfe8")
+
+                anim_canvas.create_text(cx, cy + 130, text="Dopamininizi Yalnızca Mola Ödülünde Tetikleyin", font=("Segoe UI", 11, "bold"), fill="#a1a1aa")
+
+            # ----------------------------------------------------------
+            # SAHNE 7 (6): YouTube Dinamik Video Takip & Canlı Kronometre
+            # ----------------------------------------------------------
+            elif idx == 6:
+                # Video Oynatıcı Çerçevesi
+                anim_canvas.create_rectangle(cx - 130, cy - 75, cx + 130, cy + 50, fill="#181822", outline="#2e2e40", width=2)
+                anim_canvas.create_text(cx, cy - 25, text="▶ YouTube: 'TYT Matematik Fonksiyonlar'", font=("Segoe UI", 11, "bold"), fill="#ffffff")
+
+                # İlerleme Çubuğu
+                prog_w = ((t * 40) % 200) + 20
+                anim_canvas.create_rectangle(cx - 110, cy + 20, cx + 110, cy + 28, fill="#0d0d12", outline="")
+                anim_canvas.create_rectangle(cx - 110, cy + 20, cx - 110 + prog_w, cy + 28, fill="#10b981", outline="")
+
+                # Canlı Sayaç Rozeti
+                sec_sim = int((t * 2) % 60)
+                anim_canvas.create_rectangle(cx - 85, cy + 70, cx + 85, cy + 105, fill="#0d261e", outline="#10b981", width=1)
+                anim_canvas.create_text(cx, cy + 87, text=f"CANLI: 00:42:{sec_sim:02d}", font=("Segoe UI", 13, "bold"), fill="#34d399")
+
+                anim_canvas.create_text(cx, cy + 130, text="Video Durunca Sayaç Durur • Saniye Saniye Ölçülür", font=("Segoe UI", 11, "bold"), fill="#a1a1aa")
+
+            # ----------------------------------------------------------
+            # SAHNE 8 (7): Kaynak Siteler (Dinamik Kaynak & Kategori Eşleştirme)
+            # ----------------------------------------------------------
+            elif idx == 7:
+                anim_canvas.create_text(cx, cy - 110, text="Kaynak Siteler → Ders Kategorisi", font=("Segoe UI", 13, "bold"), fill="#8b5cf6")
+
+                # Sol Kaynak Kartı
+                anim_canvas.create_rectangle(cx - 140, cy - 40, cx - 20, cy + 40, fill="#161224", outline="#8b5cf6", width=2)
+                anim_canvas.create_text(cx - 80, cy - 15, text="🌐 frns.in", font=("Segoe UI", 12, "bold"), fill="#ffffff")
+                anim_canvas.create_text(cx - 80, cy + 12, text="ÜçDörtBeş / Bilgi Sarmal", font=("Segoe UI", 9), fill="#a1a1aa")
+
+                # Bağlantı Oku
+                anim_canvas.create_line(cx - 15, cy, cx + 15, cy, fill="#10b981", width=4, arrow="last")
+
+                # Sağ Ders Rozeti
+                anim_canvas.create_rectangle(cx + 20, cy - 40, cx + 140, cy + 40, fill="#0e241c", outline="#10b981", width=2)
+                anim_canvas.create_text(cx + 80, cy - 15, text="📐 MATEMATİK", font=("Segoe UI", 11, "bold"), fill="#34d399")
+                anim_canvas.create_text(cx + 80, cy + 12, text="İzlenen Süreye İşlenir", font=("Segoe UI", 9), fill="#ffffff")
+
+                anim_canvas.create_text(cx, cy + 130, text="Dilediğiniz Siteyi Ekleyin, Dersinize Doğrudan Yazılsın", font=("Segoe UI", 11, "bold"), fill="#34d399")
+
+            # ----------------------------------------------------------
+            # SAHNE 9 (8): Kilit Hedefi & Kısaltamama Kuralı
+            # ----------------------------------------------------------
+            elif idx == 8:
+                anim_canvas.create_text(cx, cy - 110, text="Hedef: 18 Haziran 2027 (TYT Kilidi)", font=("Segoe UI", 13, "bold"), fill="#ffffff")
+
+                # Kısaltılamaz Uyarısı (Kırmızı Sol Ok)
+                anim_canvas.create_line(cx - 20, cy - 20, cx - 110, cy - 20, fill="#f43f5e", width=4, arrow="last")
+                anim_canvas.create_text(cx - 65, cy - 45, text="❌ GERİYE ALINAMAZ", font=("Segoe UI", 10, "bold"), fill="#fb7185")
+
+                # Uzatılabilir İzni (Yeşil Sağ Ok)
+                anim_canvas.create_line(cx + 20, cy - 20, cx + 110, cy - 20, fill="#10b981", width=4, arrow="last")
+                anim_canvas.create_text(cx + 65, cy - 45, text="✓ İLERİYE UZATILABİLİR", font=("Segoe UI", 10, "bold"), fill="#34d399")
+
+                # Süre Dolunca Beliren Buton Simülasyonu
+                anim_canvas.create_rectangle(cx - 100, cy + 40, cx + 100, cy + 85, fill="#0f291e", outline="#10b981", width=2)
+                anim_canvas.create_text(cx, cy + 62, text="🔓 Yeni kilit oluştur.  ▾", font=("Segoe UI", 13, "bold"), fill="#34d399")
+
+                anim_canvas.create_text(cx, cy + 130, text="Süre Dolmadan 'Yeni Kilit Oluştur' Yazısı Çıkmaz", font=("Segoe UI", 11, "bold"), fill="#a1a1aa")
+
+            # ----------------------------------------------------------
+            # SAHNE 10 (9): Acil Durum (30 Dk) & Mola Barajı Ödülü
+            # ----------------------------------------------------------
+            elif idx == 9:
+                anim_canvas.create_text(cx, cy - 115, text="Tebrikler! Sisteme Tamamen Hakimsiniz", font=("Segoe UI", 14, "bold"), fill="#f59e0b")
+
+                # Sol: Acil Durum Butonu
+                anim_canvas.create_rectangle(cx - 135, cy - 50, cx - 15, cy + 30, fill="#2a1017", outline="#f43f5e", width=2)
+                anim_canvas.create_text(cx - 75, cy - 20, text="🚨 Acil Durum", font=("Segoe UI", 12, "bold"), fill="#fb7185")
+                anim_canvas.create_text(cx - 75, cy + 8, text="Haftada 1 Kez (30 Dk)", font=("Segoe UI", 9, "bold"), fill="#ffffff")
+
+                # Sağ: Mola Sandığı
+                anim_canvas.create_rectangle(cx + 15, cy - 50, cx + 135, cy + 30, fill="#1d1607", outline="#f59e0b", width=2)
+                anim_canvas.create_text(cx + 75, cy - 20, text="🎁 Mola Barajı", font=("Segoe UI", 12, "bold"), fill="#fbbf24")
+                anim_canvas.create_text(cx + 75, cy + 8, text="Çalıştıkça Açılan Ödül", font=("Segoe UI", 9, "bold"), fill="#ffffff")
+
+                # Uçuşan Altın Yıldızlar
+                for s_i in range(8):
+                    ang_s = t * 2.0 + s_i * (math.pi / 4)
+                    star_x = cx + math.cos(ang_s) * 85
+                    star_y = cy + 70 + math.sin(ang_s) * 20
+                    anim_canvas.create_text(star_x, star_y, text="✦", font=("Segoe UI", 13, "bold"), fill="#f59e0b")
+
+                anim_canvas.create_text(cx, cy + 130, text="Şimdi Başlayın ve Hedefinize Ulaşın! 🚀", font=("Segoe UI", 12, "bold"), fill="#34d399")
+
+            # 60 FPS Döngüsü (~25-30ms)
+            self._tutorial_anim_job = self.after(28, _render_canvas)
+
+        # İlk animasyon karesini başlat
+        self._tutorial_anim_job = self.after(50, _render_canvas)
 
     def _show_reward_popup(self):
         self._switch_active_view(force_rebuild=False)
