@@ -2039,14 +2039,10 @@ class BlockerEngine:
             self.current_study_subject_id = subj_id
 
             # Eğer kullanıcı tıklayarak/Space ile videoyu duraklattıysa ve ses yoksa:
-            # (SMTC henüz güncellenmemiş olsa veya gömülü oynatıcıda SMTC olmasa bile) ANINDA durdur!
+            # (SMTC henüz güncellenmemiş olsa veya sekmeler gecikmeli kapansa bile) ANINDA VE KESİN OLARAK DURDUR!
             if self._manual_pause_latched and not audio_playing_now:
-                if (now - self._last_user_pause_input_ts) > 0.70 and block_reason == "confirmed_playing":
-                    # Tıklamadan 0.7 sn geçti ve Windows SMTC hâlâ 'Playing' diyor (video durmamış, hoca sessiz):
-                    self._manual_pause_latched = False
-                else:
-                    self.is_study_counting = False
-                    return
+                self.is_study_counting = False
+                return
 
             # Hocanın nefes alma, soru okuma veya tahtaya/tablete sessizce işlem yazma anlarında
             # (YouTube ve Kaynak Siteler dahil) video oynatıcısı 'playing' durumundaysa

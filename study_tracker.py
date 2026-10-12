@@ -1311,7 +1311,15 @@ while ($true) {
 
                 if paused_study and not playing_study:
                     # SMTC'de ders videosu açıkça duraklatılmış (Paused)!
-                    # Başka bir sekmeden gerçek ders sesi gelmiyorsa ANINDA durdur!
+                    # Eğer bilgisayarda ses çıkmıyorsa anında durdur (Chromium'un gecikmeli hoparlör simgesine aldanma!)
+                    is_audio_now = (
+                        self._audio_detector.is_audio_playing()
+                        if getattr(self, "_audio_detector", None)
+                        else False
+                    )
+                    if not is_audio_now:
+                        return False, clean_browser_title(window_title), "main_video_paused"
+
                     other_audio_study = any(
                         bool(t.get("audio", False)) and is_study_video_title(
                             (t.get("title") or "").strip(),
@@ -1344,6 +1352,11 @@ while ($true) {
 
         # 2. KATMAN: Sekme Çubuğu (TabBar) Kontrolü
         if age < 5.0 and tabs:
+            is_audio_now = (
+                self._audio_detector.is_audio_playing()
+                if getattr(self, "_audio_detector", None)
+                else False
+            )
             playing_study_tabs = []
             playing_non_study_tabs = []
             for t in tabs:
@@ -1357,7 +1370,9 @@ while ($true) {
                     else:
                         playing_non_study_tabs.append(t_title)
 
-            if playing_study_tabs:
+            # Chromium sekme hoparlör simgesi video duraklatıldıktan sonra 3 saniye boyunca
+            # ekranda kalmaya devam eder! Bilgisayardan gerçek ses çıkmıyorsa video duraklatılmıştır!
+            if playing_study_tabs and is_audio_now:
                 return True, clean_browser_title(playing_study_tabs[0]), "confirmed_playing"
 
             if playing_non_study_tabs and not playing_study_tabs:
