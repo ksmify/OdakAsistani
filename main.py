@@ -1458,7 +1458,8 @@ class OdakAsistaniApp(ctk.CTk):
                 # Kartın ana çerçevesini ve soru satırı çerçevesini Rütbe (Tier) veya Aktif Çalışma durumuna göre boya
                 if is_running:
                     refs["card"].configure(fg_color="#11221c", border_color=ACCENT_EMERALD, border_width=2)
-                    refs["live_tag"].configure(text="● ÇALIŞILIYOR", text_color=ACCENT_EMERALD_TEXT)
+                    tag_txt = "● ÇALIŞILIYOR (MOLADA)" if (getattr(self.engine, "reward_available", False) or getattr(self.engine, "reward_break_item_id", None)) else "● ÇALIŞILIYOR"
+                    refs["live_tag"].configure(text=tag_txt, text_color=ACCENT_EMERALD_TEXT)
                     refs["man_btn"].configure(
                         text="Sayacı Durdur",
                         fg_color=ACCENT_EMERALD,
@@ -1567,6 +1568,11 @@ class OdakAsistaniApp(ctk.CTk):
                 text=f"✅ {subj_info['name']}: +{count} soru üzerine eklendi! Toplam: {new_total} Soru ({new_rank['title']} • {new_rank['next_info']}).",
                 text_color=new_rank["text"]
             )
+        # Kartın ve soru satırının eski tertemiz haline derhal dönmesi için önbellek imzalarını sıfırla
+        for refs in self._subject_ui_refs.values():
+            refs["last_state_sig"] = None
+            refs["last_time_sig"] = None
+        self._last_bento_header_sig = None
         self._sync_subject_stats_view(focus_stopped_entry=False)
 
     def _on_no_questions_clicked(self, subject_id: str, entry_widget: ctk.CTkEntry):
@@ -1579,6 +1585,10 @@ class OdakAsistaniApp(ctk.CTk):
             text=f"📖 {subj_info['name']}: Bu periyotta soru çözülmedi (Konu çalışması) olarak işaretlendi. Kayıtlı toplam: {new_total} Soru.",
             text_color=ACCENT_CYAN
         )
+        for refs in self._subject_ui_refs.values():
+            refs["last_state_sig"] = None
+            refs["last_time_sig"] = None
+        self._last_bento_header_sig = None
         self._sync_subject_stats_view(focus_stopped_entry=False)
 
     def _on_toggle_manual_study(self, subject_id: str):
@@ -4563,12 +4573,6 @@ class OdakAsistaniApp(ctk.CTk):
             with self.engine.lock:
                 self.engine.reward_popup_shown = True
             self._show_reward_popup()
-        elif reward_ready and self.reward_popup_win is not None and self.reward_popup_win.winfo_exists():
-            try:
-                self.reward_popup_win.attributes("-topmost", True)
-                self.reward_popup_win.lift()
-            except Exception:
-                pass
 
         self.after(180, self._tick)
 

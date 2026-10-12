@@ -1635,9 +1635,9 @@ class BlockerEngine:
                 self.subject_last_session_status[subject_id] = f"+{int(count)}"
                 new_total = self.subject_questions[subject_id]
 
-            if self.last_stopped_manual_subject_id == subject_id:
-                self.last_stopped_manual_subject_id = ""
-                self.last_stopped_manual_ts = 0.0
+            # Soru eklendiğinde (veya 0 soru kaydedildiğinde) bekleyen soru girişi durumunu derhal ve kesin temizle
+            self.last_stopped_manual_subject_id = ""
+            self.last_stopped_manual_ts = 0.0
             subj_info = get_subject_info(subject_id)
 
         if count == 0:
@@ -1924,14 +1924,12 @@ class BlockerEngine:
             self._last_heartbeat_save_ts = now
             self.save_state()
 
-        # 2 saatlik baraj dolduysa veya 10 dakikalık ödül molasındaysak TÜM SAYAÇLARI ANINDA DURDUR!
+        # 2 saatlik baraj dolduysa veya 10 dakikalık ödül molasındaysak TÜM SAYAÇLARI ANINDA DURDUR (Zaman dursun)!
         with self.lock:
             if self.reward_available or (self.reward_break_item_id and now < self.reward_break_end_ts):
                 self.current_study_video = ""
                 self.current_study_subject_id = ""
                 self.is_study_counting = False
-                self.manual_study_active = False
-                self.manual_study_subject_id = ""
                 return
             man_active = self.manual_study_active
             man_subj = self.manual_study_subject_id
@@ -1949,16 +1947,12 @@ class BlockerEngine:
                     self.study_watched_seconds + dt
                 )
                 if self.study_watched_seconds >= self.study_goal_seconds:
-                    # Baraj geçildiği anda tüm sayma işlemlerini ANINDA durdur!
+                    # Baraj geçildiği anda zaman sayımını ANINDA durdur (Kullanıcı çalışmayı bitirmedi, mola pop-up ile sadece zaman dursun)!
                     self.reward_available = True
                     self.reward_popup_shown = False
                     self.is_study_counting = False
-                    self.last_stopped_manual_subject_id = man_subj
-                    self.last_stopped_manual_ts = now
-                    self.manual_study_active = False
-                    self.manual_study_subject_id = ""
                     goal_lbl = format_goal_short_tr(self.study_goal_seconds)
-                    self.add_log(f"🏆 {goal_lbl} ders çalışma hedefi tamamlandı! Tüm sayaçlar durduruldu, {self.reward_break_minutes} dk mola hakkı kazanıldı.")
+                    self.add_log(f"🏆 {goal_lbl} ders çalışma hedefi tamamlandı! Zaman sayımı durduruldu, {self.reward_break_minutes} dk mola hakkı kazanıldı.")
                     self._notify_change()
                 elif now - self._last_study_save_ts >= 2.0:
                     self._last_study_save_ts = now
@@ -2060,14 +2054,12 @@ class BlockerEngine:
                     self.study_watched_seconds + dt
                 )
                 if self.study_watched_seconds >= self.study_goal_seconds:
-                    # Baraj geçildiği anda tüm sayma işlemlerini ANINDA durdur!
+                    # Baraj geçildiği anda zaman sayımını ANINDA durdur!
                     self.reward_available = True
                     self.reward_popup_shown = False
                     self.is_study_counting = False
-                    self.manual_study_active = False
-                    self.manual_study_subject_id = ""
                     goal_lbl = format_goal_short_tr(self.study_goal_seconds)
-                    self.add_log(f"🏆 {goal_lbl} ders izleme hedefi tamamlandı! Tüm sayaçlar durduruldu, {self.reward_break_minutes} dk mola hakkı kazanıldı.")
+                    self.add_log(f"🏆 {goal_lbl} ders izleme hedefi tamamlandı! Zaman sayımı durduruldu, {self.reward_break_minutes} dk mola hakkı kazanıldı.")
                     self._notify_change()
                 elif now - self._last_study_save_ts >= 2.0:
                     self._last_study_save_ts = now
