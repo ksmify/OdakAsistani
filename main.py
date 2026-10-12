@@ -118,52 +118,263 @@ SUBJECT_BADGE_CODES = {
 }
 
 # ======================================================================
-# 0 -> 100.000 SORU RÜTBE VE ÇERÇEVE RENK EVRİM ALGORİTMASI (MAVİ/LACİVERT YOK)
+# GENEL VE DERSLERE ÖZEL SORU RÜTBE EVRİM SİSTEMİ (0 -> 100.000 SORU)
+# Periyotlara Göre Tepe Limitler:
+# - 'today' (24 Saat / Günlük): 1.000 Soru
+# - 'week' (Haftalık / 7 Gün): 7.000 Soru
+# - 'month' (Aylık / 31 Gün): 28.000 Soru
+# - 'all' (Tüm Zamanlar): 100.000 Soru
 # ======================================================================
-QUESTION_RANK_TIERS = [
-    # (min_q, next_q, rank_title, border_hex, text_hex, pill_bg_hex, card_bg_hex, row_bg_hex)
-    (0,      10,     "Başlangıç",             "#2e2e38", "#a1a1aa", "#18181e", "#18181e", "#0d0d11"),
-    (1,      10,     "I • Kıvılcım Avcısı",   "#b45309", "#fbbf24", "#26180a", "#19140e", "#120e0a"),
-    (10,     50,     "II • Bronz Savaşçı",    "#d97706", "#fbbf24", "#2e1d0a", "#1c1610", "#16110b"),
-    (50,     100,    "III • Yeşim Muhafız",   "#22c55e", "#4ade80", "#0d2b18", "#111e16", "#0b1610"),
-    (100,    250,    "IV • Zümrüt Şövalye",   "#10b981", "#34d399", "#092e22", "#0f201b", "#0a1713"),
-    (250,    500,    "V • Altın Uzman",       "#eab308", "#facc15", "#2e2408", "#1d190c", "#141108"),
-    (500,    1000,   "VI • Kor Alevi",        "#f97316", "#fb923c", "#331809", "#20130c", "#160d08"),
-    (1000,   2500,   "VII • Mercan Üstat",    "#f43f5e", "#fb7185", "#331019", "#201015", "#160b0e"),
-    (2500,   5000,   "VIII • Kızıl Baron",    "#ef4444", "#f87171", "#361111", "#221010", "#170b0b"),
-    (5000,   10000,  "IX • Ametist Seçkin",   "#8b5cf6", "#a78bfa", "#241442", "#191328", "#120d1e"),
-    (10000,  20000,  "X • Destansı (Epic)",   "#a855f7", "#c084fc", "#2d1245", "#1d1129", "#150c1f"),
-    (20000,  35000,  "XI • Fuşya Mareşal",    "#d946ef", "#e879f9", "#36103b", "#221025", "#180b1b"),
-    (35000,  50000,  "XII • Yakut Lordu",     "#ec4899", "#f472b6", "#381024", "#24101a", "#1a0b12"),
-    (50000,  75000,  "XIII • Güneş İmparatoru","#f59e0b","#fde047", "#382a07", "#241d0b", "#1a1507"),
-    (75000,  100000, "XIV • Platin Efsane",   "#e4e4e7", "#ffffff", "#27272a", "#1f1f23", "#151518"),
-    (100000, None,   "XV • YKS EFSANESİ",     "#10b981", "#6ee7b7", "#06382c", "#0c2620", "#081b16"),
+RANK_TIER_VISUALS = [
+    # (border_hex, text_hex, pill_bg_hex, card_bg_hex, row_bg_hex)
+    ("#2e2e38", "#a1a1aa", "#18181e", "#18181e", "#0d0d11"),  # 0: Başlangıç
+    ("#b45309", "#fbbf24", "#26180a", "#19140e", "#120e0a"),  # 1: I
+    ("#d97706", "#fbbf24", "#2e1d0a", "#1c1610", "#16110b"),  # 2: II
+    ("#22c55e", "#4ade80", "#0d2b18", "#111e16", "#0b1610"),  # 3: III
+    ("#10b981", "#34d399", "#092e22", "#0f201b", "#0a1713"),  # 4: IV
+    ("#eab308", "#facc15", "#2e2408", "#1d190c", "#141108"),  # 5: V
+    ("#f97316", "#fb923c", "#331809", "#20130c", "#160d08"),  # 6: VI
+    ("#f43f5e", "#fb7185", "#331019", "#201015", "#160b0e"),  # 7: VII
+    ("#ef4444", "#f87171", "#361111", "#221010", "#170b0b"),  # 8: VIII
+    ("#8b5cf6", "#a78bfa", "#241442", "#191328", "#120d1e"),  # 9: IX
+    ("#a855f7", "#c084fc", "#2d1245", "#1d1129", "#150c1f"),  # 10: X
+    ("#d946ef", "#e879f9", "#36103b", "#221025", "#180b1b"),  # 11: XI
+    ("#ec4899", "#f472b6", "#381024", "#24101a", "#1a0b12"),  # 12: XII
+    ("#f59e0b", "#fde047", "#382a07", "#241d0b", "#1a1507"),  # 13: XIII
+    ("#e4e4e7", "#ffffff", "#27272a", "#1f1f23", "#151518"),  # 14: XIV
+    ("#10b981", "#6ee7b7", "#06382c", "#0c2620", "#081b16"),  # 15: XV
 ]
 
+# Periyotlara göre eşik değerleri (Thresholds)
+RANK_THRESHOLDS_BY_PERIOD = {
+    # 24 Saatlik zaman dilimi: En yüksek rütbe 1.000 soruda
+    "today": [0, 1, 10, 25, 50, 100, 150, 250, 350, 500, 600, 700, 800, 900, 950, 1000],
+    # Haftalık (7 gün): En yüksek rütbe 7.000 soruda
+    "week": [0, 5, 50, 150, 350, 700, 1000, 1750, 2500, 3500, 4200, 4900, 5600, 6300, 6700, 7000],
+    # Aylık (31 gün): En yüksek rütbe 28.000 soruda
+    "month": [0, 20, 200, 600, 1400, 2800, 4200, 7000, 10000, 14000, 17000, 20000, 23000, 25500, 27000, 28000],
+    # Tüm Zamanlar: 100.000 soru
+    "all": [0, 1, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 20000, 35000, 50000, 75000, 100000],
+}
 
-def get_question_rank_tier(question_count: int) -> dict:
-    """Çözülen soru sayısına göre (0 -> 100.000+) rütbe, çerçeve rengi ve sonraki hedef bilgisini döndürür."""
+# Toplam soru çözümü için genel rütbe adları
+GLOBAL_RANK_TITLES = [
+    "Başlangıç",
+    "I • Kıvılcım Avcısı",
+    "II • Bronz Savaşçı",
+    "III • Yeşim Muhafız",
+    "IV • Zümrüt Şövalye",
+    "V • Altın Uzman",
+    "VI • Kor Alevi",
+    "VII • Mercan Üstat",
+    "VIII • Kızıl Baron",
+    "IX • Ametist Seçkin",
+    "X • Destansı (Epic)",
+    "XI • Fuşya Mareşal",
+    "XII • Yakut Lordu",
+    "XIII • Güneş İmparatoru",
+    "XIV • Platin Efsane",
+    "XV • YKS EFSANESİ",
+]
+
+# Her ders için kendine has tematik ve özgün rütbe adları
+SUBJECT_SPECIFIC_RANK_TITLES = {
+    # Matematik: Bir İki Üç'ten Pisagor'un İkizi'ne
+    "matematik": [
+        "Başlangıç",
+        "I • Bir İki Üç",
+        "II • Dört İşlem Çırağı",
+        "III • Denklem Avcısı",
+        "IV • Polinom Bükücü",
+        "V • Fonksiyon Mimarı",
+        "VI • Logaritma Kâşifi",
+        "VII • Trigonometri Ustası",
+        "VIII • Limit Fatihi",
+        "IX • Türev Canavarı",
+        "XI • İntegral Dâhisi",
+        "XI • Analiz Üstadı",
+        "XII • Sayılar Teoricisi",
+        "XIII • Gauss'un Mirasçısı",
+        "XIV • Euler Seviyesi",
+        "XV • Pisagor'un İkizi",
+    ],
+    # Geometri: Nokta ve Çizgi'den Öklid'in Aynası'na
+    "geometri": [
+        "Başlangıç",
+        "I • Nokta & Doğru",
+        "II • Cetvel Çırağı",
+        "III • Açı Avcısı",
+        "IV • Üçgen Kâşifi",
+        "V • Pisagor Takipçisi",
+        "VI • Benzerlik Ustası",
+        "VII • Dörtgen Mimarı",
+        "VIII • Çokgen Stratejisti",
+        "IX • Çember Kılavuzu",
+        "X • Daire Büyücüsü",
+        "XI • Katı Cisim Mühendisi",
+        "XII • Analitik Hâkimi",
+        "XIII • Uzay Geometri Lideri",
+        "XIV • Altın Oran Üstadı",
+        "XV • Öklid'in Aynası",
+    ],
+    # Fizik: Statik Kıvılcım'dan Einstein'ın Zihni'ne
+    "fizik": [
+        "Başlangıç",
+        "I • Statik Kıvılcım",
+        "II • Vektör Çırağı",
+        "III • Dinamik Gözlemcisi",
+        "IV • Newton Yolcusu",
+        "V • İtme & Momentum Ustası",
+        "VI • Enerji Koruyucusu",
+        "VII • Tork Dengesi",
+        "VIII • Basınç & Akışkan Mimarı",
+        "IX • Termodinamik Hâkimi",
+        "X • Optik & Işık Kâşifi",
+        "XI • Manyetizma Efendisi",
+        "XII • Dalga Mekaniği Lideri",
+        "XIII • Kuantum Meraklısı",
+        "XIV • Görelilik Kuramcısı",
+        "XV • Einstein'ın Zihni",
+    ],
+    # Kimya: Beher Çırağı'ndan Simyacı'nın Zirvesi'ne
+    "kimya": [
+        "Başlangıç",
+        "I • Beher Çırağı",
+        "II • Madde Kaşifi",
+        "III • Atom Modelcisi",
+        "IV • Periyodik Tablo Avcısı",
+        "V • Kimyasal Bağ Mimarı",
+        "VI • Mol Hesaplayıcısı",
+        "VII • Gaz Yasaları Ustası",
+        "VIII • Çözelti Kimyageri",
+        "IX • Termokimya Uzmanı",
+        "X • Hız & Denge Cambazı",
+        "XI • Asit-Baz Stratejisti",
+        "XII • Elektrokimya Hâkimi",
+        "XIII • Organik Molekül Lideri",
+        "XIV • Reaksiyon Mimarı",
+        "XV • Simyacı'nın Zirvesi",
+    ],
+    # Biyoloji: Tek Hücreli'den Yaşamın Kodu (DNA)'na
+    "biyoloji": [
+        "Başlangıç",
+        "I • Tek Hücreli",
+        "II • Organel Çırağı",
+        "III • Sitoplazma Gezgini",
+        "IV • Membran Bekçisi",
+        "V • Enzim Mühendisi",
+        "VI • Mitoz & Mayoz Gözlemcisi",
+        "VII • Kalıtım & Gen Avcısı",
+        "VIII • Ekoloji Koruyucusu",
+        "IX • Doku & Sistem Kâşifi",
+        "X • Sinir Sistemi Hâkimi",
+        "XI • Fotosentez Fabrikatörü",
+        "XII • Hücresel Solunum Ustası",
+        "XIII • Protein Sentezi Mimarı",
+        "XIV • Evrimsel Biyolog",
+        "XV • Yaşamın Kodu (DNA)",
+    ],
+    # Türkçe & Edebiyat: Alfabeci'den Şair / Edebiyat Dehası'na
+    "turkce": [
+        "Başlangıç",
+        "I • Alfabeci",
+        "II • Kelime Çırağı",
+        "III • Hece & Ses Avcısı",
+        "IV • Yazım Kuralları Bekçisi",
+        "V • Noktalama Muhafızı",
+        "VI • Paragraf Dedektifi",
+        "VII • Anlam Ustası",
+        "VIII • Dil Bilgisi Hâkimi",
+        "IX • Cümle Analisti",
+        "X • Nazım & Nesir Kâşifi",
+        "XI • Divan & Halk Bilgesi",
+        "XII • Tanzimat & Servetifünun Rehberi",
+        "XIII • Cumhuriyet Edebiyatçısı",
+        "XIV • Söz Sanatları Üstadı",
+        "XV • Şair (Edebiyat Dehası)",
+    ],
+    # Sosyal (Tarih, Coğrafya, Felsefe, Din): Kronikçi'den Zaman & Mekân Bilgesi'ne
+    "sosyal": [
+        "Başlangıç",
+        "I • Kronikçi",
+        "II • Pusula Çırağı",
+        "III • Harita Okuyucusu",
+        "IV • İlk Çağ Gezgini",
+        "V • İklim & Yer Bilimci",
+        "VI • Selçuklu & Beylikler Kâşifi",
+        "VII • Osmanlı Tarihçisi",
+        "VIII • Nüfus & Göç Stratejisti",
+        "IX • İnkılap Tarihi Muhafızı",
+        "X • Coğrafya Hâkimi",
+        "XI • Felsefi Düşünür",
+        "XII • Mantık & Ahlak Bilgesi",
+        "XIII • Medeniyetler Mimarı",
+        "XIV • Tarihçi-Coğrafyacı Başyazar",
+        "XV • Zaman & Mekân Bilgesi",
+    ],
+    # Soru Çözümü / Deneme: Kalem Tutan'dan Deneme Canavarı / YKS Şampiyonu'na
+    "soru_cozum": [
+        "Başlangıç",
+        "I • Kalem Tutan",
+        "II • Sayfa Çeviren",
+        "III • Test Çırağı",
+        "IV • Şık Avcısı",
+        "V • Süre Taktisyeni",
+        "VI • Hata Avcısı",
+        "VII • Branş Denemecisi",
+        "VIII • Net Avcısı",
+        "IX • Genel Deneme Askeri",
+        "X • Optik Form Ustası",
+        "XI • Baraj Yıkan",
+        "XII • Hız & Doğruluk Cambazı",
+        "XIII • Derece Adayı",
+        "XIV • Net Canavarı",
+        "XV • YKS Şampiyonu",
+    ],
+}
+
+
+def get_question_rank_tier(question_count: int, subject_id: str = "global", period_key: str = "all") -> dict:
+    """
+    Çözülen soru sayısına, seçili ders türüne ve periyoda ('today', 'week', 'month', 'all') göre:
+    - Günlük (1.000 max), haftalık (7.000 max), aylık (28.000 max), tüm zamanlar (100.000 max)
+    - Ders bazında özel rütbe unvanı, toplamda ise genel rütbe unvanı
+    - Kaç soruda hangi rütbeye ulaşılacağını belirten sonraki rütbe hedefi ve görsel renkleri döndürür.
+    """
     q = max(0, int(question_count))
-    chosen = QUESTION_RANK_TIERS[0]
+    thresholds = RANK_THRESHOLDS_BY_PERIOD.get(period_key, RANK_THRESHOLDS_BY_PERIOD["all"])
+
+    if subject_id and subject_id in SUBJECT_SPECIFIC_RANK_TITLES:
+        title_list = SUBJECT_SPECIFIC_RANK_TITLES[subject_id]
+    else:
+        title_list = GLOBAL_RANK_TITLES
+
     tier_index = 0
-    for idx, t in enumerate(QUESTION_RANK_TIERS):
-        if q >= t[0]:
-            chosen = t
+    for idx, th in enumerate(thresholds):
+        if q >= th:
             tier_index = idx
         else:
             break
 
-    min_q, next_q, title, border_c, text_c, pill_bg, card_bg, row_bg = chosen
-    if next_q is not None:
-        rem = max(0, next_q - q)
-        next_info = f"Hedef: {next_q:,} Soru ({rem:,} kaldı)".replace(",", ".")
+    title = title_list[tier_index] if tier_index < len(title_list) else title_list[-1]
+    border_c, text_c, pill_bg, card_bg, row_bg = RANK_TIER_VISUALS[tier_index]
+
+    if tier_index < len(thresholds) - 1:
+        next_th = thresholds[tier_index + 1]
+        next_title = title_list[tier_index + 1]
+        rem = max(0, next_th - q)
+        next_info = f"Sonraki Rütbe: {next_title} ({next_th:,} Soru • {rem:,} kaldı)".replace(",", ".")
     else:
-        next_info = "MAKSİMUM RÜTBE (100.000+ EFSANE)"
+        max_th = thresholds[-1]
+        next_th = None
+        next_info = f"🏆 MAKSİMUM RÜTBE ({max_th:,}+ SORU TAMAMLANDI!)".replace(",", ".")
+
+    min_th = thresholds[tier_index]
 
     return {
         "tier_index": tier_index,
-        "min_q": min_q,
-        "next_q": next_q,
+        "min_q": min_th,
+        "next_q": next_th,
         "title": title,
         "border": border_c,
         "text": text_c,
@@ -1325,16 +1536,20 @@ class OdakAsistaniApp(ctk.CTk):
                 self._bento_time_sub.configure(text=f"Tüm zamanlar toplamı: {format_duration_tr(total_all_sec)}")
 
             # Üst Bento Soru Kartını Genel Rütbe Algoritmasına Göre Renklendir
-            global_rank = get_question_rank_tier(max(total_period_q, total_all_q))
+            global_rank = get_question_rank_tier(
+                question_count=total_period_q,
+                subject_id="global",
+                period_key=period_key
+            )
             self._bento_q_title.configure(
                 text=f"ÇÖZÜLEN SORU ({p_upper})  •  RÜTBE: {global_rank['title'].upper()}",
-                text_color=global_rank["text"] if total_all_q > 0 else TEXT_SECONDARY
+                text_color=global_rank["text"] if total_period_q > 0 else TEXT_SECONDARY
             )
             self._total_questions_lbl.configure(
                 text=f"{total_period_q:,} SORU".replace(",", "."),
-                text_color=global_rank["text"] if total_all_q > 0 else ACCENT_EMERALD_TEXT
+                text_color=global_rank["text"] if total_period_q > 0 else ACCENT_EMERALD_TEXT
             )
-            if total_all_q > 0:
+            if total_period_q > 0:
                 self._bento_q_frame.configure(
                     fg_color=global_rank["card_bg"],
                     border_color=global_rank["border"],
@@ -1350,18 +1565,18 @@ class OdakAsistaniApp(ctk.CTk):
                 )
             elif period_key == "today":
                 self._bento_q_sub.configure(
-                    text=f"Genel: {total_all_q:,} Soru   •   Bugün çözülenler (00:00'da sıfırlanır)".replace(",", "."),
-                    text_color=global_rank["text"] if total_all_q > 0 else TEXT_MUTED
+                    text=f"{global_rank['next_info']}   •   Tüm Zamanlar: {total_all_q:,} Soru".replace(",", "."),
+                    text_color=global_rank["text"] if total_period_q > 0 else TEXT_MUTED
                 )
             elif period_key == "week":
                 self._bento_q_sub.configure(
-                    text=f"Genel: {total_all_q:,} Soru   •   Son 7 günün soru toplamı".replace(",", "."),
-                    text_color=global_rank["text"] if total_all_q > 0 else TEXT_MUTED
+                    text=f"{global_rank['next_info']}   •   Tüm Zamanlar: {total_all_q:,} Soru".replace(",", "."),
+                    text_color=global_rank["text"] if total_period_q > 0 else TEXT_MUTED
                 )
             elif period_key == "month":
                 self._bento_q_sub.configure(
-                    text=f"Genel: {total_all_q:,} Soru   •   Son 31 günün soru toplamı".replace(",", "."),
-                    text_color=global_rank["text"] if total_all_q > 0 else TEXT_MUTED
+                    text=f"{global_rank['next_info']}   •   Tüm Zamanlar: {total_all_q:,} Soru".replace(",", "."),
+                    text_color=global_rank["text"] if total_period_q > 0 else TEXT_MUTED
                 )
             else:
                 self._bento_q_sub.configure(
@@ -1376,8 +1591,11 @@ class OdakAsistaniApp(ctk.CTk):
             sec = subj_secs.get(sid, 0.0)
             q_cnt = subj_questions.get(sid, 0)
             q_all_cnt = all_questions.get(sid, 0)
-            rank_q_val = max(q_cnt, q_all_cnt)
-            rank_info = get_question_rank_tier(rank_q_val)
+            rank_info = get_question_rank_tier(
+                question_count=q_cnt,
+                subject_id=sid,
+                period_key=period_key
+            )
 
             ratio = (sec / total_period_sec) if total_period_sec > 0 else 0.0
             pct = int(round(ratio * 100))
@@ -1400,17 +1618,17 @@ class OdakAsistaniApp(ctk.CTk):
 
             # Büyük soru rozeti, rütbe adı ve sonraki rütbe hedefini oluştur
             big_num_str = f"{q_cnt:,} SORU ÇÖZÜLDÜ".replace(",", ".")
-            if rank_q_val > 0:
+            if q_cnt > 0:
                 header_q_str = f"★ {rank_info['title']}  •  {q_cnt:,} SORU".replace(",", ".")
             else:
-                header_q_str = "Başlangıç  •  0 SORU"
+                header_q_str = f"★ {rank_info['title']}  •  0 SORU"
 
             if is_just_stopped:
                 detail_str = "Çalışma tamamlandı  •  Çözdüğün soru sayısını sağdaki kutuya yaz:"
             else:
                 extra_parts = [rank_info["next_info"]]
                 if period_key != "all" and q_all_cnt != q_cnt:
-                    extra_parts.append(f"Toplam: {q_all_cnt:,} Soru".replace(",", "."))
+                    extra_parts.append(f"Tüm Zamanlar: {q_all_cnt:,} Soru".replace(",", "."))
                 if last_note == "no_questions":
                     extra_parts.append("Son: Konu (0 soru)")
                 elif last_note.startswith("+"):
@@ -1427,7 +1645,7 @@ class OdakAsistaniApp(ctk.CTk):
                 refs["q_lbl"].configure(text=detail_str)
 
                 # Soru kapsüllerini, alt soru barını ve + Üzerine Ekle butonunu YALNIZCA Rütbe (Tier) rengine boya!
-                if rank_q_val > 0:
+                if q_cnt > 0:
                     refs["q_header_pill"].configure(
                         fg_color=rank_info["pill_bg"],
                         border_color=rank_info["border"],
@@ -1473,12 +1691,12 @@ class OdakAsistaniApp(ctk.CTk):
                         border_width=0
                     )
                     refs["q_row"].configure(
-                        fg_color=rank_info["row_bg"] if rank_q_val > 0 else BG_INPUT,
-                        border_color=rank_info["border"] if rank_q_val > 0 else BORDER_SUBTLE,
-                        border_width=2 if rank_q_val > 0 else 1
+                        fg_color=rank_info["row_bg"] if q_cnt > 0 else BG_INPUT,
+                        border_color=rank_info["border"] if q_cnt > 0 else BORDER_SUBTLE,
+                        border_width=2 if q_cnt > 0 else 1
                     )
-                    refs["q_lbl"].configure(text_color=rank_info["text"] if rank_q_val > 0 else TEXT_SECONDARY)
-                    refs["q_entry"].configure(border_color=rank_info["border"] if rank_q_val > 0 else BORDER_DEFAULT)
+                    refs["q_lbl"].configure(text_color=rank_info["text"] if q_cnt > 0 else TEXT_SECONDARY)
+                    refs["q_entry"].configure(border_color=rank_info["border"] if q_cnt > 0 else BORDER_DEFAULT)
                 elif is_just_stopped:
                     refs["card"].configure(fg_color="#211b11", border_color=ACCENT_AMBER, border_width=2)
                     refs["live_tag"].configure(text="● SORU GİRİŞİ BEKLENİYOR", text_color=ACCENT_AMBER)
@@ -1496,9 +1714,9 @@ class OdakAsistaniApp(ctk.CTk):
                     entry_to_focus = refs["q_entry"]
                 else:
                     refs["card"].configure(
-                        fg_color=rank_info["card_bg"] if rank_q_val > 0 else BG_CARD,
-                        border_color=rank_info["border"] if rank_q_val > 0 else BORDER_SUBTLE,
-                        border_width=2 if rank_q_val > 0 else 1
+                        fg_color=rank_info["card_bg"] if q_cnt > 0 else BG_CARD,
+                        border_color=rank_info["border"] if q_cnt > 0 else BORDER_SUBTLE,
+                        border_width=2 if q_cnt > 0 else 1
                     )
                     refs["live_tag"].configure(text="", text_color=rank_info["text"])
                     refs["man_btn"].configure(
@@ -1510,12 +1728,12 @@ class OdakAsistaniApp(ctk.CTk):
                         border_width=1
                     )
                     refs["q_row"].configure(
-                        fg_color=rank_info["row_bg"] if rank_q_val > 0 else BG_INPUT,
-                        border_color=rank_info["border"] if rank_q_val > 0 else BORDER_SUBTLE,
-                        border_width=2 if rank_q_val > 0 else 1
+                        fg_color=rank_info["row_bg"] if q_cnt > 0 else BG_INPUT,
+                        border_color=rank_info["border"] if q_cnt > 0 else BORDER_SUBTLE,
+                        border_width=2 if q_cnt > 0 else 1
                     )
-                    refs["q_lbl"].configure(text_color=rank_info["text"] if rank_q_val > 0 else TEXT_SECONDARY)
-                    refs["q_entry"].configure(border_color=rank_info["border"] if rank_q_val > 0 else BORDER_DEFAULT)
+                    refs["q_lbl"].configure(text_color=rank_info["text"] if q_cnt > 0 else TEXT_SECONDARY)
+                    refs["q_entry"].configure(border_color=rank_info["border"] if q_cnt > 0 else BORDER_DEFAULT)
 
         if focus_stopped_entry and entry_to_focus is not None:
             self.after(60, lambda: entry_to_focus.focus_set() if entry_to_focus.winfo_exists() else None)
