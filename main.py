@@ -627,6 +627,11 @@ class OdakAsistaniApp(ctk.CTk):
         self._item_card_refs = {}
         self._rendered_items_signature = None
         self._last_bento_header_sig = None
+        self._global_rank_ladder_expanded = False
+        self._global_rank_ladder_card = None
+        self._global_rank_ladder_btn = None
+        self._global_rank_ladder_body = None
+        self._subject_rank_ladders_expanded = {}
 
         ensure_startup_registered()
 
@@ -1236,14 +1241,34 @@ class OdakAsistaniApp(ctk.CTk):
         )
         self._bento_q_frame.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
 
+        bento_q_top_row = ctk.CTkFrame(self._bento_q_frame, fg_color="transparent")
+        bento_q_top_row.pack(fill="x", padx=18, pady=(14, 2))
+
         self._bento_q_title = ctk.CTkLabel(
-            self._bento_q_frame,
+            bento_q_top_row,
             text="ÇÖZÜLEN SORU (BUGÜN)  •  RÜTBE: BAŞLANGIÇ",
             font=self._font(12, "bold"),
             text_color=TEXT_SECONDARY,
             anchor="w"
         )
-        self._bento_q_title.pack(fill="x", padx=18, pady=(14, 2))
+        self._bento_q_title.pack(side="left")
+
+        # Genel Rütbe Sıralamasını Göster / Kapat Butonu
+        self._global_rank_ladder_btn = ctk.CTkButton(
+            bento_q_top_row,
+            text="Rütbe Sıralamasını Göster ▾",
+            font=self._font(11, "bold"),
+            fg_color=BG_ELEVATED,
+            hover_color=BG_ELEVATED_HOVER,
+            text_color="#e4e4e7",
+            border_color=BORDER_DEFAULT,
+            border_width=1,
+            height=26,
+            width=185,
+            corner_radius=8,
+            command=self._on_toggle_global_rank_ladder
+        )
+        self._global_rank_ladder_btn.pack(side="right")
 
         self._total_questions_lbl = ctk.CTkLabel(
             self._bento_q_frame,
@@ -1264,6 +1289,22 @@ class OdakAsistaniApp(ctk.CTk):
         self._bento_q_sub.pack(fill="x", padx=18, pady=(0, 14))
 
         # --------------------------------------------------------------
+        # 2.5 GENEL RÜTBE SIRALAMASI AÇILIR KAPANIR PARÇACIK (KIRMIZI ÇİZGİ ALANI)
+        # --------------------------------------------------------------
+        self._global_rank_ladder_card = ctk.CTkFrame(
+            self.stats_scroll_frame,
+            fg_color=BG_SURFACE,
+            border_color=BORDER_STRONG,
+            border_width=1,
+            corner_radius=14
+        )
+        # Varsayılan kapalı: tıklandığında row=2'de görünür
+        self._global_rank_ladder_card.grid_columnconfigure(0, weight=1)
+
+        self._global_rank_ladder_body = ctk.CTkFrame(self._global_rank_ladder_card, fg_color="transparent")
+        self._global_rank_ladder_body.grid_columnconfigure(0, weight=1)
+
+        # --------------------------------------------------------------
         # 3. DERS KARTLARI (YERİNDE GÜNCELLENEN KARTLAR)
         # --------------------------------------------------------------
         for idx, subj in enumerate(SUBJECT_DEFINITIONS):
@@ -1277,7 +1318,7 @@ class OdakAsistaniApp(ctk.CTk):
                 border_width=1,
                 corner_radius=14
             )
-            card.grid(row=idx + 2, column=0, columnspan=2, sticky="ew", padx=4, pady=5)
+            card.grid(row=idx + 3, column=0, columnspan=2, sticky="ew", padx=4, pady=5)
             card.grid_columnconfigure(0, weight=1)
 
             # Üst Satır: Özel Vektör Ders Rozeti + Ders Adı + Dev Soru Rozeti + Süre + Manuel Başlat/Durdur
@@ -1376,7 +1417,7 @@ class OdakAsistaniApp(ctk.CTk):
             bar.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 8))
             bar.set(0.0)
 
-            # Alt Satır: Sisteme Gömülü Dev Çözülen Soru Sayacı + "Soru Çözmedim" + Kümülatif Ekleme
+            # Alt Satır: Sisteme Gömülü Dev Çözülen Soru Sayacı + "Soru Çözmedim" + Kümülatif Ekleme + Rütbe Listesi Butonu
             q_row = ctk.CTkFrame(
                 card,
                 fg_color=BG_INPUT,
@@ -1384,7 +1425,7 @@ class OdakAsistaniApp(ctk.CTk):
                 border_width=1,
                 corner_radius=12
             )
-            q_row.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 12))
+            q_row.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 10))
             q_row.grid_columnconfigure(1, weight=1)
 
             # Sol: Büyük Vurgulu Çözülen Soru Kutusu
@@ -1463,7 +1504,28 @@ class OdakAsistaniApp(ctk.CTk):
                 corner_radius=8,
                 command=lambda s_id=sid, ent=q_entry: self._on_no_questions_clicked(s_id, ent)
             )
-            no_q_btn.grid(row=0, column=4, sticky="e", padx=(0, 10), pady=7)
+            no_q_btn.grid(row=0, column=4, sticky="e", padx=(0, 6), pady=7)
+
+            # Her Derse Özel Rütbe Sıralamasını Göster / Kapat Butonu
+            ladder_btn = ctk.CTkButton(
+                q_row,
+                text="Rütbeler ▾",
+                font=self._font(11, "bold"),
+                fg_color=BG_ELEVATED,
+                hover_color=BG_ELEVATED_HOVER,
+                text_color=ACCENT_CYAN,
+                width=90,
+                height=30,
+                corner_radius=8,
+                border_color=BORDER_DEFAULT,
+                border_width=1,
+                command=lambda s_id=sid: self._on_toggle_subject_rank_ladder(s_id)
+            )
+            ladder_btn.grid(row=0, column=5, sticky="e", padx=(0, 10), pady=7)
+
+            # Kartın Altındaki Açılır Kapanır Rütbe Sıralama Gövdesi (Row 3)
+            ladder_body = ctk.CTkFrame(card, fg_color="transparent")
+            ladder_body.grid_columnconfigure(0, weight=1)
 
             self._subject_ui_refs[sid] = {
                 "card": card,
@@ -1481,6 +1543,8 @@ class OdakAsistaniApp(ctk.CTk):
                 "q_entry": q_entry,
                 "add_q_btn": add_q_btn,
                 "no_q_btn": no_q_btn,
+                "ladder_btn": ladder_btn,
+                "ladder_body": ladder_body,
                 "color": s_color,
                 "last_state_sig": None,
             }
@@ -1721,12 +1785,19 @@ class OdakAsistaniApp(ctk.CTk):
                     refs["q_entry"].configure(border_color=ACCENT_AMBER)
                     entry_to_focus = refs["q_entry"]
                 else:
-                    # Normal durum: Kart ve soru satırı standart Obsidian koyuluğunda, çerçeveler sade ve tertemiz
-                    refs["card"].configure(
-                        fg_color=BG_CARD,
-                        border_color=BORDER_SUBTLE,
-                        border_width=1
-                    )
+                    # Normal durum: Kullanıcının isteği üzerine eğer çözülen soru varsa tüm çerçeve rütbenin rengiyle örtüşür
+                    if q_cnt > 0:
+                        refs["card"].configure(
+                            fg_color=BG_CARD,
+                            border_color=rank_info["border"],
+                            border_width=2
+                        )
+                    else:
+                        refs["card"].configure(
+                            fg_color=BG_CARD,
+                            border_color=BORDER_SUBTLE,
+                            border_width=1
+                        )
                     refs["live_tag"].configure(text="", text_color=TEXT_MUTED)
                     refs["man_btn"].configure(
                         text="Manuel Çalışma Başlat",
@@ -1744,8 +1815,285 @@ class OdakAsistaniApp(ctk.CTk):
                     refs["q_lbl"].configure(text_color=TEXT_SECONDARY)
                     refs["q_entry"].configure(border_color=BORDER_DEFAULT)
 
+        # Açık olan Genel Rütbe Sıralaması veya Ders Rütbe Sıralamalarını güncel soru & periyoda göre tazele
+        if getattr(self, "_global_rank_ladder_expanded", False):
+            self._render_global_rank_ladder()
+
+        for sid, is_exp in getattr(self, "_subject_rank_ladders_expanded", {}).items():
+            if is_exp:
+                self._render_subject_rank_ladder(sid)
+
         if focus_stopped_entry and entry_to_focus is not None:
             self.after(60, lambda: entry_to_focus.focus_set() if entry_to_focus.winfo_exists() else None)
+
+    def _on_toggle_global_rank_ladder(self):
+        """Üst Bento Soru kartının altındaki genel rütbe sıralamasını açar veya kapatır."""
+        self._global_rank_ladder_expanded = not getattr(self, "_global_rank_ladder_expanded", False)
+        if self._global_rank_ladder_expanded:
+            self._global_rank_ladder_btn.configure(
+                text="Listeyi Kapat ▴",
+                fg_color=BG_ELEVATED_HOVER,
+                text_color=ACCENT_CYAN
+            )
+            self._global_rank_ladder_card.grid(row=2, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 10))
+            self._global_rank_ladder_body.pack(fill="both", expand=True, padx=12, pady=12)
+            self._render_global_rank_ladder()
+        else:
+            self._global_rank_ladder_btn.configure(
+                text="Rütbe Sıralamasını Göster ▾",
+                fg_color=BG_ELEVATED,
+                text_color="#e4e4e7"
+            )
+            self._global_rank_ladder_card.grid_remove()
+
+    def _render_global_rank_ladder(self):
+        """Genel rütbelerin kademelerini (16 seviye) seçili periyoda göre oluşturur."""
+        period_key = PERIOD_LABELS.get(self.current_stats_period_label, "today")
+        thresholds = RANK_THRESHOLDS_BY_PERIOD.get(period_key, RANK_THRESHOLDS_BY_PERIOD["all"])
+        _, subj_questions = self.engine.get_stats_for_period(period_key)
+        total_q = sum(subj_questions.values())
+        curr_rank = get_question_rank_tier(total_q, subject_id="global", period_key=period_key)
+        curr_tier_idx = curr_rank["tier_index"]
+
+        # Gövdeyi temizle
+        for child in self._global_rank_ladder_body.winfo_children():
+            child.destroy()
+
+        # Üst Başlık Satırı
+        header_bar = ctk.CTkFrame(self._global_rank_ladder_body, fg_color="transparent")
+        header_bar.pack(fill="x", pady=(0, 10))
+
+        title_lbl = ctk.CTkLabel(
+            header_bar,
+            text=f"GENEL RÜTBE SIRALAMASI VE GEREKLİ SORU HEDEFLERİ  •  [{self.current_stats_period_label.upper()}]",
+            font=self._font(13, "bold"),
+            text_color=curr_rank["text"] if total_q > 0 else ACCENT_CYAN
+        )
+        title_lbl.pack(side="left")
+
+        q_status_lbl = ctk.CTkLabel(
+            header_bar,
+            text=f"Şu Anki Toplam: {total_q:,} Soru  •  Mevcut: {curr_rank['title']}".replace(",", "."),
+            font=self._font(12, "bold"),
+            text_color=TEXT_SECONDARY
+        )
+        q_status_lbl.pack(side="right")
+
+        # 4 Sütunlu Izgara (Grid)
+        grid_frame = ctk.CTkFrame(self._global_rank_ladder_body, fg_color="transparent")
+        grid_frame.pack(fill="x")
+        for c in range(4):
+            grid_frame.grid_columnconfigure(c, weight=1, uniform="rank_col")
+
+        for idx, th in enumerate(thresholds):
+            tier_title = GLOBAL_RANK_TITLES[idx] if idx < len(GLOBAL_RANK_TITLES) else GLOBAL_RANK_TITLES[-1]
+            border_c, text_c, pill_bg, card_bg, _ = RANK_TIER_VISUALS[idx]
+
+            is_current = (idx == curr_tier_idx)
+            is_unlocked = (total_q >= th)
+
+            if is_current:
+                cell_bg = "#1f2937" if idx == 0 else card_bg
+                cell_border = border_c
+                border_w = 2
+                badge_txt = "★ MEVCUT RÜTBE"
+                badge_color = text_c
+            elif is_unlocked:
+                cell_bg = BG_INPUT
+                cell_border = border_c
+                border_w = 1
+                badge_txt = "✓ TAMAMLANDI"
+                badge_color = ACCENT_EMERALD_TEXT
+            else:
+                cell_bg = BG_INPUT
+                cell_border = BORDER_SUBTLE
+                border_w = 1
+                rem_needed = th - total_q
+                badge_txt = f"🔒 {rem_needed:,} kaldı".replace(",", ".")
+                badge_color = TEXT_MUTED
+
+            row_i = idx // 4
+            col_i = idx % 4
+
+            cell = ctk.CTkFrame(
+                grid_frame,
+                fg_color=cell_bg,
+                border_color=cell_border,
+                border_width=border_w,
+                corner_radius=10
+            )
+            cell.grid(row=row_i, column=col_i, padx=5, pady=5, sticky="nsew")
+
+            top_row = ctk.CTkFrame(cell, fg_color="transparent")
+            top_row.pack(fill="x", padx=10, pady=(8, 2))
+
+            ctk.CTkLabel(
+                top_row,
+                text=tier_title,
+                font=self._font(12, "bold"),
+                text_color=text_c if (is_unlocked or is_current) else TEXT_SECONDARY,
+                anchor="w"
+            ).pack(side="left")
+
+            ctk.CTkLabel(
+                top_row,
+                text=f"{th:,} Soru".replace(",", "."),
+                font=self._font(11, "bold"),
+                text_color=TEXT_PRIMARY if (is_unlocked or is_current) else TEXT_MUTED,
+                anchor="e"
+            ).pack(side="right")
+
+            bot_row = ctk.CTkFrame(cell, fg_color="transparent")
+            bot_row.pack(fill="x", padx=10, pady=(2, 8))
+
+            ctk.CTkLabel(
+                bot_row,
+                text=badge_txt,
+                font=self._font(10, "bold"),
+                text_color=badge_color,
+                anchor="w"
+            ).pack(side="left")
+
+    def _on_toggle_subject_rank_ladder(self, subject_id: str):
+        """İlgili ders kartının altındaki özel rütbe sıralamasını açar veya kapatır."""
+        refs = self._subject_ui_refs.get(subject_id)
+        if not refs:
+            return
+
+        is_expanded = not self._subject_rank_ladders_expanded.get(subject_id, False)
+        self._subject_rank_ladders_expanded[subject_id] = is_expanded
+
+        ladder_btn = refs["ladder_btn"]
+        ladder_body = refs["ladder_body"]
+
+        if is_expanded:
+            ladder_btn.configure(
+                text="Rütbeler ▴",
+                fg_color=BG_ELEVATED_HOVER,
+                text_color=ACCENT_CYAN
+            )
+            ladder_body.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 12))
+            self._render_subject_rank_ladder(subject_id)
+        else:
+            ladder_btn.configure(
+                text="Rütbeler ▾",
+                fg_color=BG_ELEVATED,
+                text_color=ACCENT_CYAN
+            )
+            ladder_body.grid_remove()
+
+    def _render_subject_rank_ladder(self, subject_id: str):
+        """Seçili dersin 16 kademelik tematik rütbe basamaklarını periyoda göre çizer."""
+        refs = self._subject_ui_refs.get(subject_id)
+        if not refs:
+            return
+        ladder_body = refs["ladder_body"]
+
+        period_key = PERIOD_LABELS.get(self.current_stats_period_label, "today")
+        thresholds = RANK_THRESHOLDS_BY_PERIOD.get(period_key, RANK_THRESHOLDS_BY_PERIOD["all"])
+        _, subj_questions = self.engine.get_stats_for_period(period_key)
+        q_cnt = subj_questions.get(subject_id, 0)
+        curr_rank = get_question_rank_tier(q_cnt, subject_id=subject_id, period_key=period_key)
+        curr_tier_idx = curr_rank["tier_index"]
+
+        titles = SUBJECT_SPECIFIC_RANK_TITLES.get(subject_id, GLOBAL_RANK_TITLES)
+
+        # Gövdeyi temizle
+        for child in ladder_body.winfo_children():
+            child.destroy()
+
+        # Kart İçinde Ayrım Çizgisi ve Başlık
+        head_box = ctk.CTkFrame(ladder_body, fg_color="transparent")
+        head_box.pack(fill="x", pady=(4, 8))
+
+        ctk.CTkLabel(
+            head_box,
+            text=f"RÜTBE SIRALAMASI  •  {curr_rank['title'].upper()}",
+            font=self._font(12, "bold"),
+            text_color=curr_rank["text"] if q_cnt > 0 else ACCENT_CYAN
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            head_box,
+            text=f"Seçili Periyot: {self.current_stats_period_label}   •   Çözülen: {q_cnt:,} Soru".replace(",", "."),
+            font=self._font(11, "bold"),
+            text_color=TEXT_MUTED
+        ).pack(side="right")
+
+        # 4 Sütunlu Mini Izgara
+        sub_grid = ctk.CTkFrame(ladder_body, fg_color="transparent")
+        sub_grid.pack(fill="x")
+        for c in range(4):
+            sub_grid.grid_columnconfigure(c, weight=1, uniform=f"s_{subject_id}_col")
+
+        for idx, th in enumerate(thresholds):
+            tier_title = titles[idx] if idx < len(titles) else titles[-1]
+            border_c, text_c, pill_bg, card_bg, _ = RANK_TIER_VISUALS[idx]
+
+            is_current = (idx == curr_tier_idx)
+            is_unlocked = (q_cnt >= th)
+
+            if is_current:
+                cell_bg = "#1f2937" if idx == 0 else card_bg
+                cell_border = border_c
+                border_w = 2
+                badge_txt = "★ MEVCUT"
+                badge_color = text_c
+            elif is_unlocked:
+                cell_bg = BG_SURFACE
+                cell_border = border_c
+                border_w = 1
+                badge_txt = "✓ TAMAMLANDI"
+                badge_color = ACCENT_EMERALD_TEXT
+            else:
+                cell_bg = BG_SURFACE
+                cell_border = BORDER_SUBTLE
+                border_w = 1
+                rem_needed = th - q_cnt
+                badge_txt = f"🔒 {rem_needed:,} kaldı".replace(",", ".")
+                badge_color = TEXT_MUTED
+
+            row_i = idx // 4
+            col_i = idx % 4
+
+            box = ctk.CTkFrame(
+                sub_grid,
+                fg_color=cell_bg,
+                border_color=cell_border,
+                border_width=border_w,
+                corner_radius=8
+            )
+            box.grid(row=row_i, column=col_i, padx=4, pady=4, sticky="nsew")
+
+            t_row = ctk.CTkFrame(box, fg_color="transparent")
+            t_row.pack(fill="x", padx=8, pady=(6, 2))
+
+            ctk.CTkLabel(
+                t_row,
+                text=tier_title,
+                font=self._font(11, "bold"),
+                text_color=text_c if (is_unlocked or is_current) else TEXT_SECONDARY,
+                anchor="w"
+            ).pack(side="left")
+
+            ctk.CTkLabel(
+                t_row,
+                text=f"{th:,}".replace(",", "."),
+                font=self._font(11, "bold"),
+                text_color=TEXT_PRIMARY if (is_unlocked or is_current) else TEXT_MUTED,
+                anchor="e"
+            ).pack(side="right")
+
+            b_row = ctk.CTkFrame(box, fg_color="transparent")
+            b_row.pack(fill="x", padx=8, pady=(1, 6))
+
+            ctk.CTkLabel(
+                b_row,
+                text=badge_txt,
+                font=self._font(10, "bold"),
+                text_color=badge_color,
+                anchor="w"
+            ).pack(side="left")
 
     def _on_period_changed(self, selected_label: str):
         if self.current_stats_period_label == selected_label:
