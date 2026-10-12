@@ -352,11 +352,34 @@ class OdakAsistaniApp(ctk.CTk):
         icon_path = os.path.join(BASE_DIR, "odak_icon.ico")
         if os.path.exists(icon_path):
             try:
-                self.iconbitmap(icon_path)
+                self.iconbitmap(default=icon_path)
+            except Exception:
+                try:
+                    self.iconbitmap(icon_path)
+                except Exception:
+                    pass
+            try:
+                from PIL import Image, ImageTk
+                self._app_icon_photo = ImageTk.PhotoImage(Image.open(icon_path))
+                self.wm_iconphoto(True, self._app_icon_photo)
+            except Exception:
+                pass
+            try:
+                # Windows Taskbar ve Alt+Tab için Win32 WM_SETICON
+                IMAGE_ICON = 1
+                LR_LOADFROMFILE = 0x00000010
+                WM_SETICON = 0x0080
+                hicon_big = ctypes.windll.user32.LoadImageW(0, icon_path, IMAGE_ICON, 32, 32, LR_LOADFROMFILE)
+                hicon_small = ctypes.windll.user32.LoadImageW(0, icon_path, IMAGE_ICON, 16, 16, LR_LOADFROMFILE)
+                hwnd = ctypes.windll.user32.GetParent(self.winfo_id()) or self.winfo_id()
+                if hicon_big:
+                    ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, 1, hicon_big)
+                if hicon_small:
+                    ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, 0, hicon_small)
             except Exception:
                 pass
 
-        self.current_tab = "Antigravity'nin Seçtikleri"
+        self.current_tab = "Asistan'ın Seçtikleri"
         self.current_stats_period_label = "Bugün"
         self.search_query = ""
         self._ui_dirty = False
@@ -367,6 +390,7 @@ class OdakAsistaniApp(ctk.CTk):
         self.emergency_confirm_win = None
         self.break_settings_win = None
         self.custom_lock_win = None
+        self.tutorial_win = None
 
         # Zero-Flicker (In-Place) görünüm referansları ve imza önbellekleri
         self._stats_built = False
@@ -503,24 +527,45 @@ class OdakAsistaniApp(ctk.CTk):
         )
         self.status_label.pack(padx=14, pady=6)
 
-        # Sağ: Kilit Hedefi & Geri Sayım Seçici (Custom Lock Chooser) + Yönetici İzni + Acil Durum Butonu
+        # Sağ: Kilit Hedefi & Geri Sayım Seçici (Custom Lock Chooser) + Öğretici + Yönetici İzni + Acil Durum Butonu
         right_btns = ctk.CTkFrame(top_bar, fg_color="transparent")
         right_btns.grid(row=0, column=2, sticky="e")
 
+        init_btn_text = (
+            "🔓 Yeni kilit oluştur.  ▾"
+            if init_cd.get("unlocked")
+            else f"🔒 {init_cd.get('countdown_prefix', 'TYT Kilidi')}: --G --S --D --Sn  ▾"
+        )
         self.tyt_countdown_label = ctk.CTkButton(
             right_btns,
-            text=f"🔒 {init_cd.get('countdown_prefix', 'TYT Kilidi')}: --G --S --D --Sn  ▾",
+            text=init_btn_text,
             font=self._font(12, "bold"),
             fg_color=BG_SURFACE,
             hover_color=BG_ELEVATED_HOVER,
-            text_color=TEXT_PRIMARY,
+            text_color=ACCENT_EMERALD_TEXT if init_cd.get("unlocked") else TEXT_PRIMARY,
             border_color=BORDER_DEFAULT,
             border_width=1,
             height=34,
             corner_radius=17,
             command=self._open_custom_lock_chooser_popup
         )
-        self.tyt_countdown_label.pack(side="left", padx=(0, 10))
+        self.tyt_countdown_label.pack(side="left", padx=(0, 8))
+
+        self.tutorial_btn = ctk.CTkButton(
+            right_btns,
+            text="🎓 Nasıl Çalışır?",
+            font=self._font(12, "bold"),
+            fg_color=BG_SURFACE,
+            hover_color=BG_ELEVATED_HOVER,
+            text_color="#e4e4e7",
+            border_color=BORDER_DEFAULT,
+            border_width=1,
+            height=34,
+            width=135,
+            corner_radius=17,
+            command=self._open_tutorial_popup
+        )
+        self.tutorial_btn.pack(side="left", padx=(0, 8))
 
         if not is_admin():
             ctk.CTkButton(
@@ -531,7 +576,7 @@ class OdakAsistaniApp(ctk.CTk):
                 hover_color=BG_ELEVATED_HOVER,
                 text_color=TEXT_PRIMARY,
                 height=34,
-                width=120,
+                width=110,
                 corner_radius=17,
                 command=self._restart_as_admin
             ).pack(side="left", padx=(0, 8))
@@ -546,7 +591,7 @@ class OdakAsistaniApp(ctk.CTk):
             border_color="#591c2b",
             border_width=1,
             height=34,
-            width=175,
+            width=165,
             corner_radius=17,
             command=self._on_emergency_button_clicked
         )
@@ -571,7 +616,7 @@ class OdakAsistaniApp(ctk.CTk):
 
         self.cmd_entry = ctk.CTkEntry(
             entry_row,
-            placeholder_text='Kilitlenecek uygulama veya web sitesi yazın... (Örn: "instagram ve discord\'u kapat", "ornek.com kapat")',
+            placeholder_text='Kilitlenecek uygulama veya web sitesi yazın... (Örn: "Fortnite\'ı kapat", "tiktok.com kapat", "youtube.com/shorts kapat")',
             height=42,
             font=self._font(13),
             fg_color=BG_INPUT,
@@ -604,7 +649,7 @@ class OdakAsistaniApp(ctk.CTk):
 
         self.feedback_label = ctk.CTkLabel(
             info_row,
-            text="Katı Odak Modu aktif • Kilitlenen uygulama ve siteler 18 Haziran 2027 (TYT'den 1 gün öncesi) tarihine kadar açılamaz.",
+            text="Katı Odak Modu aktif • Kilitlenen uygulama ve siteler belirlenen kilit hedefine kadar açılamaz.",
             font=self._font(12),
             text_color=TEXT_SECONDARY,
             anchor="w"
@@ -645,7 +690,7 @@ class OdakAsistaniApp(ctk.CTk):
         self._nav_buttons = {}
         nav_items = [
             "Uygulamalarım",
-            "Antigravity'nin Seçtikleri",
+            "Asistan'ın Seçtikleri",
             "Web Siteleri",
             "📊 Ders Sürelerim",
             "🌐 Kaynak Siteler",
@@ -1907,11 +1952,12 @@ class OdakAsistaniApp(ctk.CTk):
         filtered = []
 
         for item in all_items:
-            if self.current_tab == "Antigravity'nin Seçtikleri":
-                if not item.get("antigravity_pick"):
+            is_asistan_pick = bool(item.get("antigravity_pick") or item.get("asistan_pick"))
+            if self.current_tab == "Asistan'ın Seçtikleri":
+                if not is_asistan_pick:
                     continue
             else:
-                if item.get("antigravity_pick"):
+                if is_asistan_pick:
                     continue
                 if self.current_tab in ("Uygulamalarım", "Bilgisayarımdaki Uygulamalar"):
                     if not item.get("is_pc_app"):
@@ -1934,7 +1980,7 @@ class OdakAsistaniApp(ctk.CTk):
 
             filtered.append(item)
 
-        if self.current_tab != "Antigravity'nin Seçtikleri":
+        if self.current_tab != "Asistan'ın Seçtikleri":
             filtered.sort(key=lambda x: (not x.get("blocked", False), x["name"].lower()))
         return filtered
 
@@ -1963,7 +2009,7 @@ class OdakAsistaniApp(ctk.CTk):
             w.destroy()
 
         row_offset = 0
-        if self.current_tab == "Antigravity'nin Seçtikleri":
+        if self.current_tab == "Asistan'ın Seçtikleri":
             total_domains = sum(len(x.get("domains", [])) for x in filtered)
             ag_banner = ctk.CTkFrame(
                 self.items_scroll_frame,
@@ -1979,7 +2025,7 @@ class OdakAsistaniApp(ctk.CTk):
             ctk.CTkLabel(
                 ag_banner,
                 text=(
-                    f"Antigravity Koruma Paketi  •  {len(filtered)} Kategori ({total_domains} Alan Adı Kilitli)  •  Hedef: {t_title}\n"
+                    f"Asistan Koruma Paketi  •  {len(filtered)} Kategori ({total_domains} Alan Adı Kilitli)  •  Hedef: {t_title}\n"
                     f"Sosyal Medya, Reels, Yayın, Dizi/Film, Anime, Web Oyunları, Alışveriş ve AI Sohbet siteleri "
                     f"{target_dt_str} tarihine kadar koruma altında."
                 ),
@@ -2088,7 +2134,7 @@ class OdakAsistaniApp(ctk.CTk):
 
         raw_name = item["name"]
         sub_lbl = None
-        if item.get("antigravity_pick"):
+        if item.get("antigravity_pick") or item.get("asistan_pick"):
             if "(" in raw_name and raw_name.endswith(")"):
                 main_title, paren_part = raw_name.split("(", 1)
                 main_title = main_title.strip()
@@ -3133,6 +3179,353 @@ class OdakAsistaniApp(ctk.CTk):
             command=_on_save_lock
         ).grid(row=0, column=1, sticky="ew", padx=(8, 0))
 
+    def _open_tutorial_popup(self):
+        """Kullanıcının NASIL ÇALIŞIR.txt rehberine dayalı modern, 7 adımlı, animasyonlu öğretici modalı."""
+        if self.tutorial_win is not None and self.tutorial_win.winfo_exists():
+            self._force_window_on_top(self.tutorial_win, 650, 560, break_fullscreen=True)
+            return
+
+        pop = ctk.CTkToplevel(self)
+        pop.title("Odak Asistanı — Nasıl Çalışır? (Öğretici Rehber)")
+        pop.geometry("650x560")
+        pop.resizable(False, False)
+        pop.configure(fg_color=BG_CANVAS)
+        pop.attributes("-topmost", True)
+        pop.after(50, lambda: apply_windows_dark_titlebar(pop))
+
+        icon_path = os.path.join(BASE_DIR, "odak_icon.ico")
+        if os.path.exists(icon_path):
+            try:
+                pop.iconbitmap(icon_path)
+            except Exception:
+                pass
+
+        pop.update_idletasks()
+        sw = pop.winfo_screenwidth()
+        sh = pop.winfo_screenheight()
+        x = max(20, (sw - 650) // 2)
+        y = max(20, (sh - 560) // 2)
+        pop.geometry(f"650x560+{x}+{y}")
+
+        self.tutorial_win = pop
+
+        def _close_tutorial():
+            try:
+                pop.destroy()
+            except Exception:
+                pass
+            self.tutorial_win = None
+
+        pop.protocol("WM_DELETE_WINDOW", _close_tutorial)
+
+        steps = [
+            {
+                "icon": "🎓",
+                "tag": "ADIM 1 / 7  •  GENEL BAKIŞ & İLK KİLİT",
+                "badge": "Katı Koruma",
+                "badge_color": "#10b981",
+                "title": "Odak Asistanı'na Hoş Geldiniz!",
+                "body": (
+                    "Odak Asistanı; YKS, sınav hazırlığı ve derin odaklanma gerektiren çalışmalarınız için "
+                    "bilgisayarınızdaki dikkat dağıtıcı tüm unsurları tavizsiz şekilde engelleyen bir disiplin aracıdır.\n\n"
+                    "Uygulamayı açtığınızda ve ilk kilidinizi koyduğunuzda, dopamin hilesi yapabileceğiniz tüm siteler "
+                    "ve platformlar otomatik olarak Asistan tarafından kapatılır ve kilitlenir."
+                ),
+                "tip": '💡 Üstteki komut kutusuna "Fortnite\'ı kapat", "tiktok.com kapat" veya "youtube.com/shorts kapat" yazıp Kilitle\'ye basabilirsiniz.',
+            },
+            {
+                "icon": "💻",
+                "tag": "ADIM 2 / 7  •  MENÜLER",
+                "badge": "Süreç Yönetimi",
+                "badge_color": "#6366f1",
+                "title": "Uygulamalarım & Şu An Açık",
+                "body": (
+                    "• Uygulamalarım: Cihazınızdaki tüm kurulu uygulamaları eksiksiz listeler. Buradan bir uygulamayı kilitleyebilir "
+                    "ve bir sonraki mola vaktinize kadar ona veda edebilirsiniz. (Uygulama seçerken dikkatli olun, kilit kalkana kadar açılamaz!)\n\n"
+                    "• Şu An Açık: An itibarıyla arka planda ve ekranda çalışan tüm süreçleri gösterir; tek tıkla odak bozucuları sonlandırıp kilitleyebilirsiniz."
+                ),
+                "tip": "💡 Bir uygulamayı sildiğinizde kilit kalkar; ancak uygulama cihazınızda var olduğu sürece koruma tavizsiz devam eder.",
+            },
+            {
+                "icon": "🛡️",
+                "tag": "ADIM 3 / 7  •  MENÜLER",
+                "badge": "Dopamin Bariyeri",
+                "badge_color": "#f43f5e",
+                "title": "Asistan'ın Seçtikleri & Web Siteleri",
+                "body": (
+                    "• Asistan'ın Seçtikleri: Uygulamamızın belirlediği zararlı ve dikkat dağıtıcı sitelerin tamamı burada tek pakette toplanmıştır. "
+                    "Siteler özenle seçilmiştir; Reels, Shorts, oyun, anime, yayın ve alışveriş gibi dopamin tuzakları tamamen engellenmiştir.\n\n"
+                    "• Web Siteleri: Asistan paketine ek olarak bireysel olarak kapatabileceğiniz yüzlerce sistem önerisi site burada yer alır."
+                ),
+                "tip": "💡 Dopamininizi gün boyu boşa harcamak yerine, yalnızca çalışma hedefinizi tamamlayıp Mola Barajı'ndan alacağınız ödülle tetikleyin!",
+            },
+            {
+                "icon": "📊",
+                "tag": "ADIM 4 / 7  •  MÜFREDAT TAKİBİ",
+                "badge": "Akıllı Sayaç",
+                "badge_color": "#06b6d4",
+                "title": "Ders Sürelerim & Otomatik Video Ölçümü",
+                "body": (
+                    "Türkiye Müfredatında yer alan tüm ana dersleri (Matematik, Fizik, Türkçe, Biyoloji vb.) burada görebilirsiniz.\n\n"
+                    "Uygulama, YouTube'dan veya tanımladığınız bir kaynak siteden izlediğiniz ders videolarını saniye saniye otomatik ölçer ve ilgili derse işler.\n\n"
+                    "Kitaptan soru çözümü veya konu çalışması yaptığınızda ise her dersin yanındaki 'Manuel Sayacı Başlat' butonunu kullanın."
+                ),
+                "tip": "💡 Soru çözdüğünüzde kümülatif soru kutusuna sayıyı yazıp ekleyebilir; soru çözülmeyen konu periyotlarında ise 'Soru Çözmedim' butonuna basabilirsiniz.",
+            },
+            {
+                "icon": "🌐",
+                "tag": "ADIM 5 / 7  •  DİNAMİK KAYNAK SİSTEMİ",
+                "badge": "Özel Video Algılayıcı",
+                "badge_color": "#8b5cf6",
+                "title": "Kaynak Siteler",
+                "body": (
+                    "Uygulama başlangıçta YouTube'u sabit ana kaynak olarak tanır (YouTube asla silinemez veya değiştirilemez).\n\n"
+                    "Ders videosu izlediğiniz diğer siteleri (Örn: Kunduz, Doping Hafıza, OGM Materyal, Khan Academy vb.) bu menüden dilediğiniz gibi ekleyebilirsiniz.\n\n"
+                    "Eklediğiniz her kaynağın hangi dersinize işlemesini istediğinizi dürüstçe seçin; izlediğiniz videolar doğrudan o dersin istatistiğine yazılsın."
+                ),
+                "tip": "💡 Kaynak eklerken alan adını yazıp kategorisini seçtiğinizde, sistem o sitede video oynatıldığında ders sürenizi otomatik saymaya başlar.",
+            },
+            {
+                "icon": "🔒",
+                "tag": "ADIM 6 / 7  •  KİLİT KURALLARI",
+                "badge": "Tavizsiz Disiplin",
+                "badge_color": "#e11d48",
+                "title": "Kilit Hedefi & Özel Kilit Seçici",
+                "body": (
+                    "Sağ üstteki sayaç butonuna tıklayarak TYT 2027, LGS, KPSS veya istediğiniz özel bir tarih ve saate kilit koyabilirsiniz.\n\n"
+                    "⚠️ ALTIN KURAL: Koyduğunuz kilit süresini kısaltmanıza ASLA izin verilmez! Yalnızca daha ileri bir tarihe uzatabilirsiniz. "
+                    "Bu yüzden hedefinizi kararlı ve gerçekçi şekilde belirleyin.\n\n"
+                    "Kilit süreniz dolduğunda ise sayaç yerini otomatik olarak 'Yeni kilit oluştur.' butonuna bırakır."
+                ),
+                "tip": "💡 Kilit süresi dolana kadar (ister 1 gün ister 1 yıl olsun) geri sayım devam eder; süre dolmadan buton yazısı değişmez.",
+            },
+            {
+                "icon": "🚨",
+                "tag": "ADIM 7 / 7  •  MOLA VE ACİL DURUM",
+                "badge": "Ödül & Acil Çıkış",
+                "badge_color": "#f59e0b",
+                "title": "Haftalık Acil Durum & Mola Barajı",
+                "body": (
+                    "• Acil Durum (30 Dk): Beklenmedik, hayati durumlarda sağ üstteki Acil Durum butonuna basabilirsiniz. "
+                    "Bu hak HAFTADA YALNIZCA 1 KEZ kullanılabilir ve 30 dakika sonra kilitler otomatik geri gelir.\n\n"
+                    "• Mola Barajı: Belirlediğiniz çalışma hedefini (Örn: 50 dk) doldurduğunuzda ödül ekranı açılır. "
+                    "Kilitli sitelerinizden birini seçip ödül molanızı (Örn: 10 dk) hak ederek kullanabilirsiniz!"
+                ),
+                "tip": "💡 Artık tüm sisteme hakimsiniz! Hedefinize odaklanın, ertelemeyi bırakın ve harika bir çalışma süreci geçirin.",
+            },
+        ]
+
+        current_step = [0]
+
+        # Üst Çubuk: İkon, Adım Sayacı ve Kategori Rozeti
+        top_header = ctk.CTkFrame(pop, fg_color="transparent")
+        top_header.pack(fill="x", padx=24, pady=(20, 10))
+
+        tag_lbl = ctk.CTkLabel(
+            top_header,
+            text="",
+            font=self._font(12, "bold"),
+            text_color=TEXT_SECONDARY,
+            anchor="w"
+        )
+        tag_lbl.pack(side="left")
+
+        badge_frame = ctk.CTkFrame(top_header, fg_color="#18181e", corner_radius=8, border_color="#2e2e38", border_width=1)
+        badge_frame.pack(side="right")
+        badge_lbl = ctk.CTkLabel(
+            badge_frame,
+            text="",
+            font=self._font(11, "bold"),
+            text_color="#10b981"
+        )
+        badge_lbl.pack(padx=10, pady=3)
+
+        # Orta Ana Kart
+        main_card = ctk.CTkFrame(
+            pop,
+            fg_color=BG_SURFACE,
+            border_color=BORDER_DEFAULT,
+            border_width=1,
+            corner_radius=16
+        )
+        main_card.pack(fill="both", expand=True, padx=24, pady=(0, 16))
+        main_card.pack_propagate(False)
+
+        title_row = ctk.CTkFrame(main_card, fg_color="transparent")
+        title_row.pack(fill="x", padx=20, pady=(18, 10))
+
+        icon_lbl = ctk.CTkLabel(
+            title_row,
+            text="",
+            font=self._font(28)
+        )
+        icon_lbl.pack(side="left", padx=(0, 10))
+
+        title_lbl = ctk.CTkLabel(
+            title_row,
+            text="",
+            font=self._font(18, "bold"),
+            text_color=TEXT_PRIMARY,
+            anchor="w"
+        )
+        title_lbl.pack(side="left")
+
+        body_lbl = ctk.CTkLabel(
+            main_card,
+            text="",
+            font=self._font(13),
+            text_color=TEXT_PRIMARY,
+            justify="left",
+            anchor="nw",
+            wraplength=560
+        )
+        body_lbl.pack(fill="both", expand=True, padx=20, pady=(0, 10))
+
+        tip_card = ctk.CTkFrame(
+            main_card,
+            fg_color=BG_INPUT,
+            border_color=BORDER_SUBTLE,
+            border_width=1,
+            corner_radius=10
+        )
+        tip_card.pack(fill="x", padx=20, pady=(0, 18))
+
+        tip_lbl = ctk.CTkLabel(
+            tip_card,
+            text="",
+            font=self._font(11, "bold"),
+            text_color=ACCENT_EMERALD_TEXT,
+            justify="left",
+            anchor="w",
+            wraplength=540
+        )
+        tip_lbl.pack(fill="x", padx=14, pady=10)
+
+        # Alt Gezinme Çubuğu (Atla / Dots / Geri / İlerle)
+        nav_bar = ctk.CTkFrame(pop, fg_color="transparent")
+        nav_bar.pack(fill="x", padx=24, pady=(0, 20))
+        nav_bar.grid_columnconfigure(0, weight=1)
+        nav_bar.grid_columnconfigure(1, weight=2)
+        nav_bar.grid_columnconfigure(2, weight=1)
+
+        # Sol: Atla
+        skip_btn = ctk.CTkButton(
+            nav_bar,
+            text="Atla",
+            font=self._font(12, "bold"),
+            fg_color=BG_ELEVATED,
+            hover_color=BG_ELEVATED_HOVER,
+            text_color=TEXT_SECONDARY,
+            width=80,
+            height=36,
+            corner_radius=10,
+            command=_close_tutorial
+        )
+        skip_btn.grid(row=0, column=0, sticky="w")
+
+        # Orta: Dot Göstergeleri
+        dots_container = ctk.CTkFrame(nav_bar, fg_color="transparent")
+        dots_container.grid(row=0, column=1)
+
+        dot_labels = []
+        for i in range(len(steps)):
+            dl = ctk.CTkLabel(
+                dots_container,
+                text="●",
+                font=self._font(14, "bold"),
+                text_color=TEXT_MUTED,
+                width=16
+            )
+            dl.pack(side="left", padx=3)
+            dot_labels.append(dl)
+
+        # Sağ: Geri & İlerle
+        right_flow = ctk.CTkFrame(nav_bar, fg_color="transparent")
+        right_flow.grid(row=0, column=2, sticky="e")
+
+        prev_btn = ctk.CTkButton(
+            right_flow,
+            text="← Geri",
+            font=self._font(12, "bold"),
+            fg_color=BG_ELEVATED,
+            hover_color=BG_ELEVATED_HOVER,
+            text_color=TEXT_PRIMARY,
+            width=85,
+            height=36,
+            corner_radius=10
+        )
+        prev_btn.pack(side="left", padx=(0, 8))
+
+        next_btn = ctk.CTkButton(
+            right_flow,
+            text="İlerle →",
+            font=self._font(12, "bold"),
+            fg_color=ACCENT_WHITE,
+            hover_color="#e4e4e7",
+            text_color=BG_CANVAS,
+            width=115,
+            height=36,
+            corner_radius=10
+        )
+        next_btn.pack(side="left")
+
+        def _update_view():
+            idx = current_step[0]
+            st = steps[idx]
+
+            # Animasyonlu pürüzsüz geçiş hissi: Önce hafif soluklaşma, sonra canlandırma
+            tag_lbl.configure(text=st["tag"])
+            badge_lbl.configure(text=st["badge"], text_color=st.get("badge_color", ACCENT_EMERALD_TEXT))
+            icon_lbl.configure(text=st["icon"])
+            title_lbl.configure(text=st["title"])
+            body_lbl.configure(text=st["body"])
+            tip_lbl.configure(text=st["tip"])
+
+            for d_i, d_lbl in enumerate(dot_labels):
+                if d_i == idx:
+                    d_lbl.configure(text_color=ACCENT_EMERALD_TEXT, font=self._font(16, "bold"))
+                else:
+                    d_lbl.configure(text_color="#3f3f46", font=self._font(12))
+
+            if idx == 0:
+                prev_btn.configure(state="disabled", fg_color="transparent", text_color="#3f3f46")
+            else:
+                prev_btn.configure(state="normal", fg_color=BG_ELEVATED, text_color=TEXT_PRIMARY)
+
+            if idx == len(steps) - 1:
+                next_btn.configure(
+                    text="Anladım, Başla! ✨",
+                    fg_color=ACCENT_EMERALD,
+                    hover_color="#059669",
+                    text_color="#052e16",
+                    width=140
+                )
+            else:
+                next_btn.configure(
+                    text="İlerle →",
+                    fg_color=ACCENT_WHITE,
+                    hover_color="#e4e4e7",
+                    text_color=BG_CANVAS,
+                    width=100
+                )
+
+        def _on_prev():
+            if current_step[0] > 0:
+                current_step[0] -= 1
+                _update_view()
+
+        def _on_next():
+            if current_step[0] < len(steps) - 1:
+                current_step[0] += 1
+                _update_view()
+            else:
+                _close_tutorial()
+
+        prev_btn.configure(command=_on_prev)
+        next_btn.configure(command=_on_next)
+
+        _update_view()
+
     def _show_reward_popup(self):
         self._switch_active_view(force_rebuild=False)
         self._refresh_status()
@@ -3148,8 +3541,8 @@ class OdakAsistaniApp(ctk.CTk):
         goal_title_tr = format_goal_short_tr(goal_sec)
 
         blocked_items = self.engine.get_blocked_items()
-        user_picks = [it for it in blocked_items if not it.get("antigravity_pick")]
-        ag_picks = [it for it in blocked_items if it.get("antigravity_pick")]
+        user_picks = [it for it in blocked_items if not (it.get("antigravity_pick") or it.get("asistan_pick"))]
+        ag_picks = [it for it in blocked_items if (it.get("antigravity_pick") or it.get("asistan_pick"))]
 
         try:
             winsound.MessageBeep(winsound.MB_ICONASTERISK)
@@ -3232,9 +3625,9 @@ class OdakAsistaniApp(ctk.CTk):
             if not target_list:
                 empty_txt = (
                     "Kilitlediğin herhangi bir uygulama veya site bulunmuyor.\n"
-                    "Üstteki 'Antigravity'nin Seçtikleri' sekmesinden seçim yapabilirsin."
+                    "Üstteki 'Asistan'ın Seçtikleri' sekmesinden seçim yapabilirsin."
                     if selected_tab == "Senin Seçtiklerin"
-                    else "Antigravity'nin seçtiği kilitli bir site bulunmuyor."
+                    else "Asistan'ın seçtiği kilitli bir site bulunmuyor."
                 )
                 ctk.CTkLabel(
                     scroll,
@@ -3293,7 +3686,7 @@ class OdakAsistaniApp(ctk.CTk):
                     command=lambda i_id=item["id"]: self._on_claim_reward_item(i_id)
                 ).grid(row=0, column=2, padx=12, pady=10)
 
-        for col_i, tab_lbl in enumerate(["Senin Seçtiklerin", "Antigravity'nin Seçtikleri"]):
+        for col_i, tab_lbl in enumerate(["Senin Seçtiklerin", "Asistan'ın Seçtikleri"]):
             tb = ctk.CTkButton(
                 popup_tab_bar,
                 text=tab_lbl,
@@ -3503,11 +3896,11 @@ class OdakAsistaniApp(ctk.CTk):
             self.header_badge_btn.configure(text=badge_txt)
             if cd["unlocked"]:
                 self.tyt_info_label.configure(
-                    text=f"{short_dt} • Süre Doldu (Yeni Hedef Seçmek İçin Sağ Üstteki Sayaca Tıklayın)",
+                    text=f"{short_dt} • Kilit Süresi Doldu (Yeni Kilit Oluşturulabilir)",
                     text_color=ACCENT_EMERALD_TEXT
                 )
                 self.tyt_countdown_label.configure(
-                    text=f"🔓 {prefix_lbl} Açıldı — Yeni Hedef Seç  ▾",
+                    text="🔓 Yeni kilit oluştur.  ▾",
                     text_color=ACCENT_EMERALD_TEXT
                 )
             else:
@@ -3737,6 +4130,12 @@ _MUTEX_HANDLE = None
 
 
 def main():
+    try:
+        # Windows Görev Çubuğunda uygulamanın bağımsız olarak Odak Asistanı ikonuyla gruplanmasını sağla
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("OdakAsistani.FocusApp.1.0")
+    except Exception:
+        pass
+
     global _MUTEX_HANDLE
     kernel32 = ctypes.windll.kernel32
     kernel32.CreateMutexW.restype = ctypes.wintypes.HANDLE

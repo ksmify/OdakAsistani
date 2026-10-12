@@ -48,4 +48,14 @@ if not %errorlevel%==0 (
     "%PY_EXE%" -m pip install -r "%~dp0requirements.txt"
 )
 
-start "" "%PYW_EXE%" "%~dp0main.py"
+if exist "%~dp0OdakAsistani.exe" (
+    start "" "%~dp0OdakAsistani.exe" "%~dp0main.py"
+) else (
+    if exist "%PYW_EXE%" copy /y "%PYW_EXE%" "%~dp0OdakAsistani.exe" >nul 2>nul
+    if exist "%~dp0OdakAsistani.exe" (
+        start "" "%~dp0OdakAsistani.exe" "%~dp0main.py"
+    ) else (
+        start "" "%PYW_EXE%" "%~dp0main.py"
+    )
+)
+

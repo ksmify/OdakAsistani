@@ -252,7 +252,7 @@ class BlockerEngine:
     def _load_state(self):
         with self.lock:
             preset_ids = {p["id"] for p in ALL_PRESET_ITEMS}
-            # 1. Önce varsayılan öğeleri ve Antigravity'nin Seçtikleri siteleri yükle
+            # 1. Önce varsayılan öğeleri ve Asistan'ın Seçtikleri siteleri yükle
             for preset in ALL_PRESET_ITEMS:
                 item_copy = dict(preset)
                 is_ag_pick = bool(preset.get("antigravity_pick", False))
@@ -535,7 +535,7 @@ class BlockerEngine:
                                 item["until_ts"] = 0.0
                             self.self_defense.release_all_protections()
                     else:
-                        # Hedef kilit tarihine kadar Antigravity'nin seçtiği
+                        # Hedef kilit tarihine kadar Asistan'ın seçtiği
                         # tüm dopamin tuzağı siteleri (mola veya acil durum aktif değilse) kilitli tut!
                         active_break_ids = {self.reward_break_item_id} | set(self.reward_break_related_ids)
                         for item_id, item in self.items.items():
@@ -558,7 +558,7 @@ class BlockerEngine:
                 p_exes_low = {e.lower() for e in papp.get("exe_names", [])}
                 matched_existing_id = None
 
-                # Antigravity'nin seçtiği web sitelerine ASLA masaüstü uygulaması (.exe) bağlama!
+                # Asistan'ın seçtiği web sitelerine ASLA masaüstü uygulaması (.exe) bağlama!
                 for ex_id, ex_item in self.items.items():
                     if ex_item.get("antigravity_pick"):
                         continue
@@ -967,7 +967,7 @@ class BlockerEngine:
     # ------------------------------------------------------------------
     def _find_linked_break_ids(self, item_id: str) -> list:
         """
-        Kullanıcı ödül molasında 'Senin Seçtiklerin' veya 'Antigravity'nin Seçtikleri'nden
+        Kullanıcı ödül molasında 'Senin Seçtiklerin' veya 'Asistan'ın Seçtikleri'nden
         bir öğe seçtiğinde (örneğin Instagram Lite <-> Instagram (Reels & DM), osu! <-> osu!,
         Chai <-> Character.AI/Chai, Rocket League <-> Epic Games & Rocket League),
         diğer menüde veya listede aynı platforma ait kilitli ikiz öğeleri otomatik bulur.
@@ -1995,7 +1995,7 @@ class BlockerEngine:
             self.lock_target_committed = True
             self.tyt_auto_unlocked = False
 
-            # Kilit bittikten sonra yeni bir hedef seçildiyse Antigravity koruma paketini tekrar kilitle
+            # Kilit bittikten sonra yeni bir hedef seçildiyse Asistan koruma paketini tekrar kilitle
             active_break_ids = {self.reward_break_item_id} | set(self.reward_break_related_ids)
             for item_id, item in self.items.items():
                 if item.get("antigravity_pick"):

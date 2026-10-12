@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Odak Asistanı - Uygulama, Oyun ve "Antigravity'nin Seçtikleri" Dopamin Tuzakları Veritabanı
+Odak Asistanı - Uygulama, Oyun ve "Asistan'ın Seçtikleri" Dopamin Tuzakları Veritabanı
 """
 
 # Asla kapatılmaması gereken kritik Windows ve geliştirici süreçleri
@@ -228,12 +228,12 @@ DEFAULT_ITEMS = [
 
 
 # ==============================================================================
-# 2. ANTIGRAVITY'NİN SEÇTİKLERİ (SADECE WEB SİTELERİ — UYGULAMALARA DOKUNMAZ!)
+# 2. ASİSTAN'IN SEÇTİKLERİ (SADECE WEB SİTELERİ — UYGULAMALARA DOKUNMAZ!)
 # Ucuz dopamin salgılatan sosyal medya, kısa video, yayın, dizi/film, anime,
 # tarayıcı oyunları, bahis/kumar, alışveriş, yapay zeka sohbet ve +18 uygunsuz
-# sitelerin tamamı. TYT'den 1 gün öncesine (18 Haziran 2027) kadar KİLİTLİ gelir.
+# sitelerin tamamı. Hedef kilit tarihine kadar KİLİTLİ gelir.
 # ==============================================================================
-ANTIGRAVITY_SITE_PICKS = [
+ASISTAN_SITE_PICKS = [
     # --- A. SONSUZ KAYDIRMA & KISA VİDEO (SOSYAL MEDYA) ---
     {
         "id": "instagram",
@@ -819,4 +819,5 @@ ANTIGRAVITY_SITE_PICKS = [
 ]
 
 # Tüm varsayılan öğelerin birleşimi (BlockerEngine tarafından yüklenir)
-ALL_PRESET_ITEMS = DEFAULT_ITEMS + ANTIGRAVITY_SITE_PICKS
+ANTIGRAVITY_SITE_PICKS = ASISTAN_SITE_PICKS
+ALL_PRESET_ITEMS = DEFAULT_ITEMS + ASISTAN_SITE_PICKS

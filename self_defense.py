@@ -412,15 +412,20 @@ class SelfDefenseManager:
 
         # Yedekte yoksa doğrudan oluştur
         try:
+            odak_exe = os.path.join(APP_DIR, "OdakAsistani.exe")
             pythonw_exe = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
-            if not os.path.exists(pythonw_exe):
-                pythonw_exe = sys.executable
+            if not os.path.exists(odak_exe) and os.path.exists(pythonw_exe):
+                try:
+                    shutil.copy2(pythonw_exe, odak_exe)
+                except Exception:
+                    pass
+            target_exe = odak_exe if os.path.exists(odak_exe) else (pythonw_exe if os.path.exists(pythonw_exe) else sys.executable)
             main_py = os.path.join(APP_DIR, "main.py")
             icon_ico = os.path.join(APP_DIR, "odak_icon.ico")
             ps_cmd = (
                 f'$ws = New-Object -ComObject WScript.Shell; '
                 f'$s = $ws.CreateShortcut("{SHORTCUT_PATH}"); '
-                f'$s.TargetPath = "{pythonw_exe}"; '
+                f'$s.TargetPath = "{target_exe}"; '
                 f'$s.Arguments = \'"{main_py}"\'; '
                 f'$s.WorkingDirectory = "{APP_DIR}"; '
                 f'$s.IconLocation = "{icon_ico},0"; '
@@ -458,11 +463,11 @@ class SelfDefenseManager:
 
         try:
             import winreg
+            odak_exe = os.path.join(APP_DIR, "OdakAsistani.exe")
             pythonw_exe = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
-            if not os.path.exists(pythonw_exe):
-                pythonw_exe = sys.executable
+            target_exe = odak_exe if os.path.exists(odak_exe) else (pythonw_exe if os.path.exists(pythonw_exe) else sys.executable)
             main_py = os.path.join(APP_DIR, "main.py")
-            run_val = f'"{pythonw_exe}" "{main_py}" --boot'
+            run_val = f'"{target_exe}" "{main_py}" --boot'
 
             with winreg.OpenKey(
                 winreg.HKEY_CURRENT_USER,
