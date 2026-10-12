@@ -227,6 +227,8 @@ DEFAULT_STUDY_SOURCES = [
 _SOURCES_LOCK = threading.Lock()
 _DYNAMIC_STUDY_SOURCES = [dict(s) for s in DEFAULT_STUDY_SOURCES]
 _ACTIVE_BROWSER_URLS = {}  # hwnd -> active url/domain string
+_ACTIVE_BROWSER_SELECTED_TITLES = {}  # hwnd -> active/selected tab title
+_ACTIVE_BROWSER_ALL_TABS = {}  # hwnd -> list of all tab dicts
 
 
 def set_dynamic_study_sources(sources_list: list):
@@ -899,13 +901,12 @@ public class WinHelper {
             if (!IsWindowVisible(hWnd)) return true;
             var sbClass = new System.Text.StringBuilder(128);
             GetClassNameW(hWnd, sbClass, 128);
-            if (sbClass.ToString() == "Chrome_WidgetWin_1") {
+            string cls = sbClass.ToString();
+            if (cls == "Chrome_WidgetWin_1" || cls == "MozillaWindowClass") {
                 var sbTitle = new System.Text.StringBuilder(512);
                 GetWindowTextW(hWnd, sbTitle, 512);
                 string title = sbTitle.ToString();
-                if (!string.IsNullOrEmpty(title) && !title.StartsWith("Volume Booster") &&
-                    (title.EndsWith("Opera") || title.EndsWith("Opera GX") || title.EndsWith("Chrome") ||
-                     title.EndsWith("Edge") || title.EndsWith("Brave") || title.EndsWith("Vivaldi") || title.EndsWith("Arc"))) {
+                if (!string.IsNullOrEmpty(title) && !title.StartsWith("Volume Booster")) {
                     list.Add(hWnd);
                 }
             }
@@ -1008,7 +1009,8 @@ while ($true) {
         } catch {}
     }
 
-    if ($tickCount % 2 -eq 0) {
+    # Her tick'te (100 ms) açık/seçili sekmeleri tara — engelli sekmeler anında yakalansın!
+    if ($true) {
         $newTabs = @()
         try {
             $hwList = [WinHelper]::GetBrowserWindows()
@@ -1143,11 +1145,23 @@ while ($true) {
                             if isinstance(tabs, dict):
                                 tabs = [tabs]
                             if isinstance(tabs, list):
+                                cur_sel_titles = {}
+                                all_t_by_hwnd = {}
                                 for tb in tabs:
-                                    if isinstance(tb, dict) and tb.get("selected") and tb.get("hwnd"):
-                                        u_str = (tb.get("url") or "").strip()
-                                        if u_str:
-                                            _ACTIVE_BROWSER_URLS[int(tb["hwnd"])] = u_str
+                                    if isinstance(tb, dict) and tb.get("hwnd"):
+                                        h_int = int(tb["hwnd"])
+                                        all_t_by_hwnd.setdefault(h_int, []).append(tb)
+                                        if tb.get("selected"):
+                                            t_name = (tb.get("title") or "").strip()
+                                            u_str = (tb.get("url") or "").strip()
+                                            if t_name:
+                                                cur_sel_titles[h_int] = t_name
+                                            if u_str:
+                                                _ACTIVE_BROWSER_URLS[h_int] = u_str
+                                _ACTIVE_BROWSER_SELECTED_TITLES.clear()
+                                _ACTIVE_BROWSER_SELECTED_TITLES.update(cur_sel_titles)
+                                _ACTIVE_BROWSER_ALL_TABS.clear()
+                                _ACTIVE_BROWSER_ALL_TABS.update(all_t_by_hwnd)
                             with self._lock:
                                 self._sessions = smtc if isinstance(smtc, list) else []
                                 self._tabs = tabs if isinstance(tabs, list) else []
@@ -1225,6 +1239,27 @@ while ($true) {
         except Exception:
             self._sidebar_enter_ts = 0.0
             return False
+
+    def get_selected_tab_title(self, hwnd: int) -> str:
+        """Belirtilen pencere tutamacına (HWND) ait aktif / seçili sekmenin başlığını döndürür."""
+        with self._lock:
+            for t in self._tabs:
+                if int(t.get("hwnd") or 0) == hwnd and t.get("selected"):
+                    return (t.get("title") or "").strip()
+        return _ACTIVE_BROWSER_SELECTED_TITLES.get(hwnd, "")
+
+    def get_selected_tab_info(self, hwnd: int) -> tuple:
+        """(sekme_başlığı, adres_çubuğu_url) ikilisini döndürür."""
+        with self._lock:
+            for t in self._tabs:
+                if int(t.get("hwnd") or 0) == hwnd and t.get("selected"):
+                    return (t.get("title") or "").strip(), (t.get("url") or "").strip()
+        return _ACTIVE_BROWSER_SELECTED_TITLES.get(hwnd, ""), _ACTIVE_BROWSER_URLS.get(hwnd, "")
+
+    def get_all_tabs_for_window(self, hwnd: int) -> list:
+        """Belirtilen pencereye ait tüm açık sekmelerin listesini döndürür."""
+        with self._lock:
+            return [t for t in self._tabs if int(t.get("hwnd") or 0) == hwnd]
 
     def get_playing_study_tab(self) -> tuple:
         """

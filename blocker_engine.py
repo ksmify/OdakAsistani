@@ -222,7 +222,10 @@ class BlockerEngine:
         self.lock_target_committed = False
 
         self._audio_detector = None
-        self._media_monitor = None
+        try:
+            self._media_monitor = BrowserMediaSessionMonitor()
+        except Exception:
+            self._media_monitor = None
         self._last_audio_ts = 0.0
         self._last_user_pause_input_ts = 0.0
         self._manual_pause_latched = False
@@ -1304,14 +1307,32 @@ class BlockerEngine:
 
         # 1. Ön plandaki pencereyi kontrol et
         hwnd, proc_name, window_title = get_foreground_window_info()
-        if proc_name and proc_name in BROWSER_PROCESSES and window_title:
+        if proc_name and proc_name in BROWSER_PROCESSES and hwnd:
             current_url = ""
+            selected_tab_title = ""
             try:
-                from study_tracker import _ACTIVE_BROWSER_URLS
+                from study_tracker import _ACTIVE_BROWSER_URLS, _ACTIVE_BROWSER_SELECTED_TITLES
                 current_url = _ACTIVE_BROWSER_URLS.get(int(hwnd), "")
+                selected_tab_title = _ACTIVE_BROWSER_SELECTED_TITLES.get(int(hwnd), "")
             except Exception:
                 pass
-            matched_name = self._tab_matches_blocked_rules(window_title, current_url, blocked_tab_rules, specific_url_rules)
+
+            if not selected_tab_title and self._media_monitor is not None:
+                selected_tab_title, cur_u = self._media_monitor.get_selected_tab_info(int(hwnd))
+                if cur_u and not current_url:
+                    current_url = cur_u
+
+            # A) Önce pencere başlığı ve adres çubuğu ile test et
+            matched_name = self._tab_matches_blocked_rules(
+                window_title, current_url, blocked_tab_rules, specific_url_rules
+            )
+            # B) Eğer pencere başlığı eşleşmediyse (Opera GX gibi tarayıcılarda hata sayfasında sekme başlığı pencereye yansımayabilir),
+            #    doğrudan aktif/seçili sekmenin (selected_tab_title) adını test et!
+            if not matched_name and selected_tab_title:
+                matched_name = self._tab_matches_blocked_rules(
+                    selected_tab_title, current_url, blocked_tab_rules, specific_url_rules
+                )
+
             if matched_name:
                 with self.lock:
                     self._last_tab_close_ts = time.time()
@@ -1346,12 +1367,20 @@ class BlockerEngine:
                         pname = psutil.Process(pid.value).name().lower()
                         if pname in BROWSER_PROCESSES:
                             cur_url = ""
+                            sel_tab = ""
                             try:
-                                from study_tracker import _ACTIVE_BROWSER_URLS
+                                from study_tracker import _ACTIVE_BROWSER_URLS, _ACTIVE_BROWSER_SELECTED_TITLES
                                 cur_url = _ACTIVE_BROWSER_URLS.get(int(w_hwnd), "")
+                                sel_tab = _ACTIVE_BROWSER_SELECTED_TITLES.get(int(w_hwnd), "")
                             except Exception:
                                 pass
+                            if not sel_tab and self._media_monitor is not None:
+                                sel_tab, cur_u = self._media_monitor.get_selected_tab_info(int(w_hwnd))
+                                if cur_u and not cur_url:
+                                    cur_url = cur_u
                             m_name = self._tab_matches_blocked_rules(w_title, cur_url, blocked_tab_rules, specific_url_rules)
+                            if not m_name and sel_tab:
+                                m_name = self._tab_matches_blocked_rules(sel_tab, cur_url, blocked_tab_rules, specific_url_rules)
                             if m_name:
                                 targets.append((w_hwnd, m_name))
                     except Exception:
@@ -2297,6 +2326,11 @@ class BlockerEngine:
 
     def shutdown(self):
         self._running = False
+        if self._media_monitor is not None:
+            try:
+                self._media_monitor.stop()
+            except Exception:
+                pass
         if self.settings.get("clean_hosts_on_exit", True):
             self.sync_hosts_file(force_clean=True)
         self.save_state()
