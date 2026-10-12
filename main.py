@@ -1291,6 +1291,12 @@ class OdakAsistaniApp(ctk.CTk):
             self._total_study_lbl.configure(text=format_duration_tr(total_period_sec))
             if period_key == "all":
                 self._bento_time_sub.configure(text="Tüm derslerin kalıcı birikimli toplamı")
+            elif period_key == "today":
+                self._bento_time_sub.configure(text="Bugünkü çalışma süresi (Her gece 00:00'da sıfırlanır)")
+            elif period_key == "week":
+                self._bento_time_sub.configure(text="Son 7 günün toplamı (Kayan 7 günlük pencere)")
+            elif period_key == "month":
+                self._bento_time_sub.configure(text="Son 31 günün toplamı (Kayan 31 günlük pencere)")
             else:
                 self._bento_time_sub.configure(text=f"Tüm zamanlar toplamı: {format_duration_tr(total_all_sec)}")
 
@@ -1316,6 +1322,21 @@ class OdakAsistaniApp(ctk.CTk):
             if period_key == "all":
                 self._bento_q_sub.configure(
                     text=global_rank["next_info"],
+                    text_color=global_rank["text"] if total_all_q > 0 else TEXT_MUTED
+                )
+            elif period_key == "today":
+                self._bento_q_sub.configure(
+                    text=f"Genel: {total_all_q:,} Soru   •   Bugün çözülenler (00:00'da sıfırlanır)".replace(",", "."),
+                    text_color=global_rank["text"] if total_all_q > 0 else TEXT_MUTED
+                )
+            elif period_key == "week":
+                self._bento_q_sub.configure(
+                    text=f"Genel: {total_all_q:,} Soru   •   Son 7 günün soru toplamı".replace(",", "."),
+                    text_color=global_rank["text"] if total_all_q > 0 else TEXT_MUTED
+                )
+            elif period_key == "month":
+                self._bento_q_sub.configure(
+                    text=f"Genel: {total_all_q:,} Soru   •   Son 31 günün soru toplamı".replace(",", "."),
                     text_color=global_rank["text"] if total_all_q > 0 else TEXT_MUTED
                 )
             else:
@@ -1345,8 +1366,8 @@ class OdakAsistaniApp(ctk.CTk):
                 and (now_ts - just_stopped_ts) < 600.0
             )
 
-            # Süre & ilerleme çubuğu yalnızca tam saniye veya yüzde değiştiğinde güncellenir
-            time_sig = (int(sec), pct)
+            # Süre & ilerleme çubuğu yalnızca periyot, tam saniye veya yüzde değiştiğinde güncellenir
+            time_sig = (period_key, int(sec), pct)
             if refs.get("last_time_sig") != time_sig:
                 refs["last_time_sig"] = time_sig
                 refs["dur_lbl"].configure(text=format_duration_tr(sec))
@@ -1373,7 +1394,7 @@ class OdakAsistaniApp(ctk.CTk):
                 detail_str = "   •   ".join(extra_parts)
 
             # Yalnızca kartın görsel durumu değiştiyse renk/buton özelliklerini güncelle (Sıfır titreme)
-            state_sig = (is_running, is_just_stopped, big_num_str, header_q_str, detail_str, rank_info["tier_index"], last_note)
+            state_sig = (period_key, is_running, is_just_stopped, big_num_str, header_q_str, detail_str, rank_info["tier_index"], last_note)
             if refs["last_state_sig"] != state_sig:
                 refs["last_state_sig"] = state_sig
 
@@ -1478,6 +1499,10 @@ class OdakAsistaniApp(ctk.CTk):
         if self.current_stats_period_label == selected_label:
             return
         self.current_stats_period_label = selected_label
+        self._last_bento_header_sig = None
+        for refs in self._subject_ui_refs.values():
+            refs["last_time_sig"] = None
+            refs["last_state_sig"] = None
         self._sync_subject_stats_view(focus_stopped_entry=False)
 
     def _on_add_questions_submitted(self, subject_id: str, entry_widget: ctk.CTkEntry):

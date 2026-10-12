@@ -1612,38 +1612,72 @@ class BlockerEngine:
     def get_stats_for_period(self, period_key: str = "all") -> tuple:
         """
         Seçilen zaman dilimine ('today', 'week', 'month', 'all') göre
-        (subject_seconds_dict, subject_questions_dict) döndürür.
+        (subject_seconds_dict, subject_questions_dict) döndürür:
+        1) 'today' (Bugün): Her gece saat 00:00 olduğunda yeni gün başlar ve günlük süreler sıfırlanır.
+        2) 'week' (Bu Hafta): Kayan 7 gün (Rolling 7 Days); 8. güne geçildiğinde 1. gün düşer, 2..8 günleri toplar.
+        3) 'month' (Bu Ay): Kayan 31 gün (Rolling 31 Days); 32. güne geçildiğinde 1. gün düşer, 2..31 günleri toplar.
+        4) 'all' (Tüm Zamanlar): Hiçbir kısıtlama olmaksızın tüm zamanların kalıcı birikimli toplamını alır.
         """
         with self.lock:
             sec_out = {s["id"]: 0.0 for s in SUBJECT_DEFINITIONS}
             q_out = {s["id"]: 0 for s in SUBJECT_DEFINITIONS}
 
+            now_dt = datetime.now()
+            today_date = now_dt.date()
+            today_str = today_date.strftime("%Y-%m-%d")
+
+            # 1. 'all' (Tüm Zamanlar): Hiçbir kısıtlama olmadan tüm zamanların birikimini döndür
             if period_key == "all":
                 for sid in sec_out:
                     sec_out[sid] = float(self.subject_seconds.get(sid, 0.0))
                     q_out[sid] = int(self.subject_questions.get(sid, 0))
+                # daily_history içindeki tüm günlerin toplamı daha büyükse güvence olarak onu baz al:
+                sum_hist_sec = {s["id"]: 0.0 for s in SUBJECT_DEFINITIONS}
+                sum_hist_q = {s["id"]: 0 for s in SUBJECT_DEFINITIONS}
+                for _, bucket in self.daily_history.items():
+                    if isinstance(bucket, dict):
+                        b_sec = bucket.get("seconds", {})
+                        b_q = bucket.get("questions", {})
+                        for sid in sec_out:
+                            sum_hist_sec[sid] += float(b_sec.get(sid, 0.0))
+                            sum_hist_q[sid] += int(b_q.get(sid, 0))
+                for sid in sec_out:
+                    sec_out[sid] = max(sec_out[sid], sum_hist_sec[sid])
+                    q_out[sid] = max(q_out[sid], sum_hist_q[sid])
                 return sec_out, q_out
 
-            now_dt = datetime.now()
-            today_date = now_dt.date()
-            today_str = today_date.strftime("%Y-%m-%d")
-            monday_date = today_date - timedelta(days=today_date.weekday())
-            month_prefix = today_date.strftime("%Y-%m-")
+            # 2. 'today' (Bugün): Yalnızca bugünün tarihi (00:00'dan itibaren başlayan geçerli takvim günü)
+            if period_key == "today":
+                bucket = self.daily_history.get(today_str)
+                if isinstance(bucket, dict):
+                    b_sec = bucket.get("seconds", {})
+                    b_q = bucket.get("questions", {})
+                    for sid in sec_out:
+                        sec_out[sid] = float(b_sec.get(sid, 0.0))
+                        q_out[sid] = int(b_q.get(sid, 0))
+                return sec_out, q_out
+
+            # 3. 'week' (Bu Hafta): Kayan 7 gün (Bugün dahil son 7 takvim günü)
+            # 8. güne geçildiğinde 1. gün pencerenin dışında kalır; 2..8 günleri toplanır.
+            week_start_date = today_date - timedelta(days=6)
+
+            # 4. 'month' (Bu Ay): Kayan 31 gün (Bugün dahil son 31 takvim günü)
+            # 32. güne geçildiğinde 1. gün pencerenin dışında kalır; 2..31 günleri toplanır.
+            month_start_date = today_date - timedelta(days=30)
 
             for day_key, bucket in self.daily_history.items():
                 if not isinstance(bucket, dict):
                     continue
+                try:
+                    d_obj = datetime.strptime(day_key, "%Y-%m-%d").date()
+                except Exception:
+                    continue
+
                 include = False
-                if period_key == "today":
-                    include = (day_key == today_str)
+                if period_key == "week":
+                    include = (week_start_date <= d_obj <= today_date)
                 elif period_key == "month":
-                    include = day_key.startswith(month_prefix)
-                elif period_key == "week":
-                    try:
-                        d_obj = datetime.strptime(day_key, "%Y-%m-%d").date()
-                        include = (monday_date <= d_obj <= today_date)
-                    except Exception:
-                        include = False
+                    include = (month_start_date <= d_obj <= today_date)
 
                 if include:
                     b_sec = bucket.get("seconds", {})
