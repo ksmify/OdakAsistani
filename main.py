@@ -3056,13 +3056,10 @@ class OdakAsistaniApp(ctk.CTk):
                 d = int(day_menu.get())
                 hm = time_menu.get().split(":")
                 hr, mn = int(hm[0]), int(hm[1])
-                # Ayın son gününü aşarsa otomatik düzelt (örn. 31 Şubat -> 28/29 Şubat)
-                for try_d in range(d, 27, -1):
-                    try:
-                        return datetime(y, m, try_d, hr, mn, 0)
-                    except ValueError:
-                        continue
-                return datetime(y, m, 28, hr, mn, 0)
+                import calendar
+                max_d = calendar.monthrange(y, m)[1]
+                target_d = min(d, max_d)
+                return datetime(y, m, target_d, hr, mn, 0)
             except Exception:
                 return datetime(2027, 6, 18, 0, 0, 0)
 
