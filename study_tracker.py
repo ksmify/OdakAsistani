@@ -289,40 +289,266 @@ def get_source_benefit_description(source: dict) -> str:
     )
 
 
+# Bilinen YKS Yayınevleri ve Eğitim Platformları İçin Akıllı Kısaltma & İsimlendirme Sözlüğü
+KNOWN_YKS_SOURCE_BRANDS = [
+    (["3dyayinlari", "3d yayinlari", "3d yayınları", "3dvideo", "3d video", "3d"], "3D Yayınları Video Çözüm", "3D", "3dyayinlari.com"),
+    (["orijinalyayinlari", "orijinal yayinlari", "orijinal yayınları", "orijinal matematik", "orijinal"], "Orijinal Yayınları Video Çözüm", "ORJ", "orijinalyayinlari.com"),
+    (["apotemi", "apotemiyayinlari", "apotemi yayınları"], "Apotemi Yayınları Video Çözüm", "APO", "apotemi.com.tr"),
+    (["acilyayinlari", "acil yayinlari", "acil yayınları", "acil matematik", "acil geo"], "Acil Yayınları Video Çözüm", "ACL", "acilyayinlari.com.tr"),
+    (["barisyayinlari", "barış yayınları", "baris yayinlari", "barisayhan", "barış ayhan"], "Barış Yayınları Video Çözüm", "BRŞ", "barisyayinlari.com"),
+    (["bilgisarmal", "bilgi sarmal"], "Bilgi Sarmal Video Çözüm", "BS", "bilgisarmalvideo.frns.in"),
+    (["ucdortbes", "üçdörtbeş", "345"], "ÜçDörtBeş Video Çözüm", "345", "ucdortbesvideo.frns.in"),
+    (["karekok", "karekök", "karekokyayinlari"], "Karekök Yayınları Video Çözüm", "KRK", "karekokvideocozum.com"),
+    (["palme", "palmeyayinevi", "palme yayınevi"], "Palme Yayınevi Video Çözüm", "PLM", "palmeyayinevi.com"),
+    (["aydinyayinlari", "aydın yayınları", "aydin yayinlari"], "Aydın Yayınları Video Çözüm", "AYD", "aydinyayinlari.com.tr"),
+    (["orbital", "orbitalyayinlari", "orbital yayınları"], "Orbital Yayınları Video Çözüm", "ORB", "orbitalyayinlari.com"),
+    (["biyotik", "biyotikyayinlari", "biyotik yayınları"], "Biyotik Yayınları Video Çözüm", "BİY", "biyotik.com.tr"),
+    (["paraf", "parafyayinlari", "paraf yayınları", "parafvideo"], "Paraf Yayınları Video Çözüm", "PRF", "parafyayinlari.com"),
+    (["eisyayinlari", "eis yayınları", "eis yayinlari", "eis"], "EİS Yayınları Video Çözüm", "EİS", "eisyayinlari.com"),
+    (["capyayinlari", "çap yayınları", "cap yayinlari", "capvideo", "çap video"], "Çap Yayınları Video Çözüm", "ÇAP", "capyayinlari.com.tr"),
+    (["hizverenk", "hız ve renk", "hizrenk", "hız renk"], "Hız ve Renk Video Çözüm", "HVR", "hizrenk.com"),
+    (["toprak", "toprakyayincilik", "toprak yayıncılık"], "Toprak Yayıncılık Video Çözüm", "TPR", "toprakyayincilik.com"),
+    (["endemik", "endemikyayinlari", "endemik yayınları"], "Endemik Yayınları Video Çözüm", "END", "endemikyayinlari.com.tr"),
+    (["metinyayinlari", "metin yayınları", "metin yayinlari"], "Metin Yayınları Video Çözüm", "MTN", "metinyayinlari.com"),
+    (["supara", "suparayayinlari", "supara yayınları"], "Supara Yayınları Video Çözüm", "SPR", "suparayayinlari.com"),
+    (["miray", "mirayyayinlari", "miray yayınları"], "Miray Yayınları Video Çözüm", "MRY", "mirayyayinlari.com.tr"),
+    (["limityayinlari", "limit yayınları", "limit yayinlari"], "Limit Yayınları Video Çözüm", "LMT", "limityayinlari.com"),
+    (["vipyayinlari", "vip yayınları", "vip yayinlari"], "VİP Yayınları Video Çözüm", "VİP", "vipyayinlari.com"),
+    (["ensyayinlari", "ens yayınları", "ens yayinlari"], "ENS Yayınları Video Çözüm", "ENS", "ensyayinlari.com.tr"),
+    (["besyayinlari", "beş yayınları", "ultiyayinlari", "ulti yayınları"], "BES / Ulti Video Çözüm", "BES", "besyayinlari.com"),
+    (["kafadengi", "kafa dengi"], "Kafa Dengi Yayınları Video Çözüm", "KFD", "kafadengiyayinlari.com"),
+    (["ozdebir", "özdebir"], "Özdebir Video Çözüm", "ÖZD", "ozdebir.org.tr"),
+    (["toder", "töder"], "TÖDER Video Çözüm", "TÖD", "toder.org"),
+    (["ogmmateryal", "ogm materyal", "eba.gov.tr", "eba"], "MEB OGM Materyal", "OGM", "ogmmateryal.eba.gov.tr"),
+    (["ertansinansahin", "ertan sinan şahin", "ertan sinan sahin"], "Ertan Sinan Şahin", "ESŞ", "ertansinansahin.com"),
+    (["kunduz"], "Kunduz Soru Çözüm", "KNZ", "kunduz.com"),
+    (["dopinghafiza", "doping hafıza", "doping hafiza"], "Doping Hafıza", "DPH", "dopinghafiza.com"),
+    (["raunt"], "Raunt Akademi", "RNT", "raunt.com"),
+    (["pakodemy"], "Pakodemy", "PKD", "pakodemy.com"),
+    (["benimhocam", "benim hocam"], "Benim Hocam", "BH", "benimhocam.com"),
+    (["krakademi", "kr akademi"], "KR Akademi", "KRA", "krakademi.com"),
+    (["udemy"], "Udemy Ders Platformu", "UDM", "udemy.com"),
+    (["khanacademy", "khan academy"], "Khan Academy", "KHN", "khanacademy.org"),
+]
+
+_GENERIC_SUBDOMAINS = {
+    "www", "ww2", "m", "mobile", "video", "videocozum", "cozum", "sorucozum",
+    "dijital", "akilli", "ogrenci", "panel", "app", "play", "watch", "izle", "kurs", "ders"
+}
+_GENERIC_TLDS = {
+    "com", "net", "org", "tr", "edu", "gov", "in", "io", "co", "tv", "app",
+    "online", "site", "xyz", "info", "biz", "me", "frns", "fernus"
+}
+_GENERIC_TITLE_STOPWORDS = {
+    "yayınları", "yayinlari", "yayınevi", "yayinevi", "yayıncılık", "yayincilik",
+    "video", "çözüm", "cozum", "soru", "bankası", "bankasi", "ders", "kurs",
+    "akademi", "eğitim", "egitim", "online", "dijital", "platformu"
+}
+
+
+def _tr_upper(text: str) -> str:
+    return (text or "").replace("i", "İ").replace("ı", "I").upper()
+
+
+def _tr_title_word(word: str) -> str:
+    if not word:
+        return ""
+    first = _tr_upper(word[0])
+    rest = word[1:].replace("İ", "i").replace("I", "ı").lower()
+    return first + rest
+
+
+def _generate_smart_badge_code(display_name: str, core_brand: str) -> str:
+    """
+    Herhangi bir kaynak adı veya domain için 2-3 harflik yüksek kaliteli rozet kısaltması üretir.
+    Örn:
+      - 'Mustafa Yağcı Matematik' -> 'MYM'
+      - 'Kafa Dengi Yayınları' -> 'KD'
+      - 'Ankera Yayınları' -> 'ANK'
+      - 'Pusula Akademi' -> 'PSL'
+    """
+    words = [
+        w for w in re.split(r"[\s\-_/\.]+", (display_name or "").strip())
+        if w and w.lower() not in _GENERIC_TITLE_STOPWORDS and w.lower() not in _GENERIC_TLDS
+    ]
+    if len(words) >= 2:
+        initials = "".join(_tr_upper(w[0]) for w in words[:3] if w)
+        if len(initials) >= 2:
+            return initials[:3]
+
+    target = words[0] if words else (core_brand or display_name or "WEB")
+    target_clean = re.sub(r"[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ]", "", target)
+    if not target_clean:
+        return "WEB"
+
+    up = _tr_upper(target_clean)
+    if len(up) <= 3:
+        return up
+
+    # Tek kelimeli markalarda sessiz harf ağırlıklı 3 harfli kök kısaltma (Örn: Pusula -> PSL, Ankera -> ANK, Karekök -> KRK)
+    vowels = set("AEIİOÖUÜ")
+    consonants = [ch for ch in up[1:] if ch not in vowels]
+    if len(consonants) >= 2:
+        return up[0] + consonants[0] + consonants[1]
+    return up[:3]
+
+
+def _prettify_brand_from_slug(core_slug: str, is_frns: bool = False) -> str:
+    """
+    'kafadengiyayinlari' veya 'sinavvideo' gibi bitişik domain köklerini
+    'Kafadengi Yayınları' veya 'Sınav Video Çözüm' gibi şık başlıklara dönüştürür.
+    """
+    s = (core_slug or "").strip().lower()
+    if not s:
+        return "Özel Kaynak"
+
+    suffix_replacements = [
+        ("videocozum", " Video Çözüm"),
+        ("sorucozum", " Soru Çözüm"),
+        ("yayinlari", " Yayınları"),
+        ("yayinevi", " Yayınevi"),
+        ("yayincilik", " Yayıncılık"),
+        ("akademi", " Akademi"),
+        ("egitim", " Eğitim"),
+        ("koleji", " Koleji"),
+        ("okullari", " Okulları"),
+        ("video", " Video Çözüm"),
+        ("cozum", " Video Çözüm"),
+    ]
+    suffix_label = ""
+    for suf, nice_suf in suffix_replacements:
+        if s.endswith(suf) and len(s) > len(suf) + 1:
+            s = s[: -len(suf)]
+            suffix_label = nice_suf
+            break
+
+    words = [_tr_title_word(p) for p in re.split(r"[\-_]+", s) if p]
+    base_title = " ".join(words) if words else _tr_title_word(s)
+    full_title = f"{base_title}{suffix_label}".strip()
+    if is_frns and "Video" not in full_title and "Çözüm" not in full_title:
+        full_title += " Video Çözüm"
+    return full_title
+
+
+def get_source_badge_code(source: dict) -> str:
+    """Kaynak kartının solundaki rozet için 2-3 karakterlik kaliteli kısaltmayı döndürür."""
+    if not isinstance(source, dict):
+        return "WEB"
+    if source.get("badge"):
+        return str(source["badge"])[:3]
+    src_id = source.get("id", "")
+    if source.get("locked") or src_id == "src_youtube":
+        return "YT"
+    if src_id == "src_ucdortbes":
+        return "345"
+    if src_id == "src_bilgisarmal":
+        return "BS"
+
+    haystack = f"{source.get('name', '')} {source.get('domain', '')}".lower()
+    for triggers, _nice_name, badge_code, _def_dom in KNOWN_YKS_SOURCE_BRANDS:
+        if any(t in haystack for t in triggers):
+            return badge_code
+
+    return _generate_smart_badge_code(source.get("name", ""), source.get("domain", ""))
+
+
 def build_custom_study_source(raw_input: str, subject_id: str = "soru_cozum") -> dict:
-    """Kullanıcının girdiği site adresi veya isimden akıllı eşleşme anahtarlarına sahip bir kaynak nesnesi üretir."""
+    """
+    Kullanıcının girdiği uzun URL, domain veya yayınevi adını kaliteli şekilde kısaltır,
+    şık bir başlık, temiz bir kök domain ve 2-3 harflik rozet koduyla kaynak nesnesi üretir.
+    """
     raw = (raw_input or "").strip()
     if not raw:
         return {}
     low = raw.lower()
-    clean_url = re.sub(r"^https?://", "", low).strip()
-    domain_part = clean_url.split("/")[0].strip()
-    if domain_part.startswith("www."):
-        domain_part = domain_part[4:]
 
+    # URL şemasını, www. önekini ve uzun dosya/sorgu yollarını temizle
+    clean_url = re.sub(r"^[a-z]+://", "", low).strip()
+    host_part = clean_url.split("/")[0].split("?")[0].split("#")[0].strip()
+    if ":" in host_part:
+        host_part = host_part.split(":")[0]
+    if host_part.startswith("www."):
+        host_part = host_part[4:]
+
+    is_url_like = ("." in host_part and " " not in raw) or ("/" in clean_url)
+    is_frns = "frns.in" in host_part or "fernus" in low
+
+    # 1. Bilinen YKS Yayınevi / Platform eşleşmesi var mı kontrol et
+    matched_brand = None
+    for triggers, nice_name, badge_code, default_dom in KNOWN_YKS_SOURCE_BRANDS:
+        for t in triggers:
+            if len(t) <= 3:
+                if re.search(rf"(?<![a-z0-9]){re.escape(t)}(?![a-z0-9])", low) or host_part.startswith(t):
+                    matched_brand = (triggers, nice_name, badge_code, default_dom)
+                    break
+            elif t in low:
+                matched_brand = (triggers, nice_name, badge_code, default_dom)
+                break
+        if matched_brand:
+            break
+
+    # 2. Kök domain ve ana marka kelimesini (core_brand) ayıkla
+    domain_tokens = [
+        p for p in host_part.split(".")
+        if p and p not in _GENERIC_SUBDOMAINS and p not in _GENERIC_TLDS
+    ]
+    core_brand = domain_tokens[0] if domain_tokens else (host_part.split(".")[0] if host_part else raw)
+
+    # Gösterilecek temiz domain etiketi (Örn: 'https://video.3dyayinlari.com/cozum/12?x=1' -> '3dyayinlari.com')
+    if matched_brand:
+        _triggers, display_name, badge_code, default_dom = matched_brand
+        short_domain = host_part if ("." in host_part and len(host_part) <= 34) else default_dom
+    elif is_url_like and "." in host_part:
+        # Gereksiz 'video.', 'cozum.', 'www.' alt alan adlarını kırpıp temiz domain bırak
+        host_parts = host_part.split(".")
+        while len(host_parts) > 2 and host_parts[0] in _GENERIC_SUBDOMAINS and "frns" not in host_parts:
+            host_parts.pop(0)
+        short_domain = ".".join(host_parts)
+        display_name = _prettify_brand_from_slug(core_brand, is_frns=is_frns)
+        badge_code = _generate_smart_badge_code(display_name, core_brand)
+    else:
+        # Kullanıcı doğrudan isim yazdıysa (Örn: 'kafa dengi yayınları' -> 'Kafa Dengi Yayınları')
+        words = [_tr_title_word(w) for w in raw.split() if w]
+        display_name = " ".join(words) if words else raw
+        if len(display_name) > 38:
+            display_name = display_name[:35].rstrip() + "..."
+        badge_code = _generate_smart_badge_code(display_name, core_brand)
+        tr_map_dom = str.maketrans("çğıöşü", "cgiosu")
+        slug_dom = re.sub(r"[^a-z0-9]", "", low.translate(tr_map_dom))
+        short_domain = f"{slug_dom[:22]}.com" if slug_dom else raw[:24]
+
+    # 3. Tarayıcı başlığı ve URL'de aranacak anahtar kelimeleri oluştur
     keywords = set()
-    keywords.add(low)
-    if domain_part:
-        keywords.add(domain_part)
-        parts = [p for p in domain_part.split(".") if p and p not in ("www", "com", "net", "org", "tr", "edu", "gov", "in", "io", "co", "tv", "app", "video", "online")]
-        for p in parts:
-            if len(p) >= 3:
-                keywords.add(p)
-        if len(parts) >= 2:
-            keywords.add(" ".join(parts))
+    if host_part and "." in host_part:
+        keywords.add(host_part)
+    if short_domain and "." in short_domain:
+        keywords.add(short_domain)
+    if core_brand and len(core_brand) >= 2:
+        keywords.add(core_brand)
+        # Eğer 'kafadengiyayinlari' gibi bitişikse 'kafadengi' kökünü de ekle
+        for suf in ("videocozum", "sorucozum", "yayinlari", "yayinevi", "yayincilik", "video", "cozum"):
+            if core_brand.endswith(suf) and len(core_brand) > len(suf) + 2:
+                keywords.add(core_brand[: -len(suf)])
 
-    # Türkçe karakter / boşluk varyasyonları
+    if matched_brand:
+        for t in matched_brand[0]:
+            if len(t) >= 2:
+                keywords.add(t)
+
+    if not is_url_like and len(low) >= 2:
+        keywords.add(low)
+
     tr_map = str.maketrans("çğıöşü", "cgiosu")
     for kw in list(keywords):
         ascii_kw = kw.translate(tr_map)
-        if len(ascii_kw) >= 3:
+        if len(ascii_kw) >= 2:
             keywords.add(ascii_kw)
 
-    slug = re.sub(r"[^a-z0-9_]", "", domain_part.translate(tr_map).replace(".", "_").replace("-", "_"))
+    slug_base = matched_brand[2].lower() if matched_brand else core_brand
+    slug = re.sub(r"[^a-z0-9_]", "", slug_base.translate(tr_map).replace(".", "_").replace("-", "_"))
     if not slug:
         slug = f"custom_{int(time.time())}"
 
-    display_name = raw if (" " in raw or not ("." in domain_part)) else domain_part
     valid_subj_ids = {opt["id"] for opt in SOURCE_CATEGORY_OPTIONS}
     if subject_id not in valid_subj_ids:
         subject_id = "soru_cozum"
@@ -330,7 +556,8 @@ def build_custom_study_source(raw_input: str, subject_id: str = "soru_cozum") ->
     return {
         "id": f"src_{slug}",
         "name": display_name,
-        "domain": domain_part if "." in domain_part else raw,
+        "domain": short_domain,
+        "badge": badge_code,
         "keywords": sorted(k for k in keywords if len(k) >= 2),
         "subject_id": subject_id,
         "locked": False,

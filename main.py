@@ -44,6 +44,7 @@ from study_tracker import (
     get_subject_info,
     get_source_category_label,
     get_source_benefit_description,
+    get_source_badge_code,
     format_goal_short_tr,
     format_goal_bar_target,
 )
@@ -1526,8 +1527,11 @@ class OdakAsistaniApp(ctk.CTk):
             return
         self._sources_built = True
 
-        self._cat_label_to_id = {label: sid for label, sid in SOURCE_CATEGORY_OPTIONS}
-        self._cat_id_to_label = {sid: label for label, sid in SOURCE_CATEGORY_OPTIONS}
+        self._cat_label_to_id = {
+            (opt["label"] if isinstance(opt, dict) else opt[0]): (opt["id"] if isinstance(opt, dict) else opt[1])
+            for opt in SOURCE_CATEGORY_OPTIONS
+        }
+        self._cat_id_to_label = {sid: label for label, sid in self._cat_label_to_id.items()}
 
         # 1. ÜST KART: YENİ DERS VİDEO KAYNAK SİTESİ EKLEME
         add_card = ctk.CTkFrame(
@@ -1692,7 +1696,7 @@ class OdakAsistaniApp(ctk.CTk):
                 s for s in sources
                 if q in str(s.get("name", "")).lower()
                 or q in str(s.get("domain", "")).lower()
-                or any(q in str(tok).lower() for tok in s.get("match_tokens", []))
+                or any(q in str(tok).lower() for tok in s.get("keywords", []))
             ]
 
         self._sources_count_lbl.configure(
@@ -1706,21 +1710,17 @@ class OdakAsistaniApp(ctk.CTk):
             src_subj = src.get("subject_id", "soru_cozum")
             is_locked = bool(src.get("locked", False))
             benefit_txt = get_source_benefit_description(src)
+            badge_code = get_source_badge_code(src)
 
             if is_locked:
-                badge_code = "YT"
                 badge_color = "#10b981"
             elif src_id == "src_ucdortbes":
-                badge_code = "345"
                 badge_color = "#f59e0b"
             elif src_id == "src_bilgisarmal":
-                badge_code = "BS"
                 badge_color = "#e4e4e7"
             else:
                 subj_info = get_subject_info(src_subj if src_subj != "otomatik" else "genel_ders")
                 badge_color = subj_info.get("color", "#10b981")
-                clean_dom = (src_domain or src_name).upper().replace("WWW.", "")
-                badge_code = clean_dom[:3] if len(clean_dom) >= 3 else "WEB"
 
             card = ctk.CTkFrame(
                 self._sources_list_frame,
