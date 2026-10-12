@@ -1644,25 +1644,25 @@ class OdakAsistaniApp(ctk.CTk):
                 refs["q_big_num_lbl"].configure(text=big_num_str)
                 refs["q_lbl"].configure(text=detail_str)
 
-                # Soru kapsüllerini, alt soru barını ve + Üzerine Ekle butonunu YALNIZCA Rütbe (Tier) rengine boya!
+                # Soru kapsüllerini ve butonlarını rütbeye göre şık Obsidian tarzında renklendir
                 if q_cnt > 0:
                     refs["q_header_pill"].configure(
                         fg_color=rank_info["pill_bg"],
                         border_color=rank_info["border"],
-                        border_width=2
+                        border_width=1
                     )
                     refs["q_header_lbl"].configure(text_color=rank_info["text"])
                     refs["q_big_pill"].configure(
                         fg_color=rank_info["pill_bg"],
                         border_color=rank_info["border"],
-                        border_width=2
+                        border_width=1
                     )
                     refs["q_big_num_lbl"].configure(text_color=rank_info["text"])
                     refs["add_q_btn"].configure(
-                        fg_color=rank_info["pill_bg"],
-                        hover_color=rank_info["card_bg"],
-                        text_color=rank_info["text"],
-                        border_color=rank_info["border"],
+                        fg_color=BG_ELEVATED,
+                        hover_color=BG_ELEVATED_HOVER,
+                        text_color=TEXT_PRIMARY,
+                        border_color=BORDER_DEFAULT,
                         border_width=1
                     )
                 else:
@@ -1671,14 +1671,22 @@ class OdakAsistaniApp(ctk.CTk):
                     refs["q_big_pill"].configure(fg_color=BG_SURFACE, border_color=BORDER_DEFAULT, border_width=1)
                     refs["q_big_num_lbl"].configure(text_color=TEXT_SECONDARY)
                     refs["add_q_btn"].configure(
-                        fg_color="#27272a",
-                        hover_color="#3f3f46",
+                        fg_color=BG_ELEVATED,
+                        hover_color=BG_ELEVATED_HOVER,
                         text_color=TEXT_PRIMARY,
-                        border_color="#3f3f46",
+                        border_color=BORDER_DEFAULT,
                         border_width=1
                     )
 
-                # Kartın ana çerçevesini ve soru satırı çerçevesini Rütbe (Tier) veya Aktif Çalışma durumuna göre boya
+                refs["no_q_btn"].configure(
+                    fg_color=BG_ELEVATED,
+                    hover_color=BG_ELEVATED_HOVER,
+                    text_color=TEXT_SECONDARY,
+                    border_color=BORDER_DEFAULT,
+                    border_width=1
+                )
+
+                # Kartın ana çerçevesini ve soru satırı çerçevesini Aktif Çalışma / Soru Bekleme / Normal durumuna göre boya
                 if is_running:
                     refs["card"].configure(fg_color="#11221c", border_color=ACCENT_EMERALD, border_width=2)
                     tag_txt = "● ÇALIŞILIYOR (MOLADA)" if (getattr(self.engine, "reward_available", False) or getattr(self.engine, "reward_break_item_id", None)) else "● ÇALIŞILIYOR"
@@ -1691,12 +1699,12 @@ class OdakAsistaniApp(ctk.CTk):
                         border_width=0
                     )
                     refs["q_row"].configure(
-                        fg_color=rank_info["row_bg"] if q_cnt > 0 else BG_INPUT,
-                        border_color=rank_info["border"] if q_cnt > 0 else BORDER_SUBTLE,
-                        border_width=2 if q_cnt > 0 else 1
+                        fg_color=BG_INPUT,
+                        border_color=BORDER_SUBTLE,
+                        border_width=1
                     )
-                    refs["q_lbl"].configure(text_color=rank_info["text"] if q_cnt > 0 else TEXT_SECONDARY)
-                    refs["q_entry"].configure(border_color=rank_info["border"] if q_cnt > 0 else BORDER_DEFAULT)
+                    refs["q_lbl"].configure(text_color=TEXT_SECONDARY)
+                    refs["q_entry"].configure(border_color=BORDER_DEFAULT)
                 elif is_just_stopped:
                     refs["card"].configure(fg_color="#211b11", border_color=ACCENT_AMBER, border_width=2)
                     refs["live_tag"].configure(text="● SORU GİRİŞİ BEKLENİYOR", text_color=ACCENT_AMBER)
@@ -1713,12 +1721,13 @@ class OdakAsistaniApp(ctk.CTk):
                     refs["q_entry"].configure(border_color=ACCENT_AMBER)
                     entry_to_focus = refs["q_entry"]
                 else:
+                    # Normal durum: Kart ve soru satırı standart Obsidian koyuluğunda, çerçeveler sade ve tertemiz
                     refs["card"].configure(
-                        fg_color=rank_info["card_bg"] if q_cnt > 0 else BG_CARD,
-                        border_color=rank_info["border"] if q_cnt > 0 else BORDER_SUBTLE,
-                        border_width=2 if q_cnt > 0 else 1
+                        fg_color=BG_CARD,
+                        border_color=BORDER_SUBTLE,
+                        border_width=1
                     )
-                    refs["live_tag"].configure(text="", text_color=rank_info["text"])
+                    refs["live_tag"].configure(text="", text_color=TEXT_MUTED)
                     refs["man_btn"].configure(
                         text="Manuel Çalışma Başlat",
                         fg_color=BG_ELEVATED,
@@ -1728,12 +1737,12 @@ class OdakAsistaniApp(ctk.CTk):
                         border_width=1
                     )
                     refs["q_row"].configure(
-                        fg_color=rank_info["row_bg"] if q_cnt > 0 else BG_INPUT,
-                        border_color=rank_info["border"] if q_cnt > 0 else BORDER_SUBTLE,
-                        border_width=2 if q_cnt > 0 else 1
+                        fg_color=BG_INPUT,
+                        border_color=BORDER_SUBTLE,
+                        border_width=1
                     )
-                    refs["q_lbl"].configure(text_color=rank_info["text"] if q_cnt > 0 else TEXT_SECONDARY)
-                    refs["q_entry"].configure(border_color=rank_info["border"] if q_cnt > 0 else BORDER_DEFAULT)
+                    refs["q_lbl"].configure(text_color=TEXT_SECONDARY)
+                    refs["q_entry"].configure(border_color=BORDER_DEFAULT)
 
         if focus_stopped_entry and entry_to_focus is not None:
             self.after(60, lambda: entry_to_focus.focus_set() if entry_to_focus.winfo_exists() else None)
