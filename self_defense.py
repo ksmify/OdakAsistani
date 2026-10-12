@@ -5,19 +5,120 @@ import shutil
 import socket
 import struct
 import ctypes
-from datetime import datetime
+from datetime import datetime, timedelta
 import subprocess
 
 # ==============================================================================
-# 2027 YKS (TYT) TAKVİMİ VE KİLİT AÇILIŞ HEDEFİ
-# 2027 TYT Sınav Tarihi: 19 Haziran 2027 Cumartesi
-# Kilitlerin & Silme Korumasının Kalkacağı Tarih (TYT'den 1 Gün Önce):
-# 18 Haziran 2027 Cuma, Saat 00:00:00
+# VARSAYILAN HEDEF KİLİT TARİHİ (2027 YKS / TYT) VE HAZIR HEDEF ŞABLONLARI
 # ==============================================================================
 TYT_EXAM_DATE_STR = "19 Haziran 2027 Cumartesi"
 TYT_UNLOCK_DATE_STR = "18 Haziran 2027 Cuma 00:00"
 TYT_UNLOCK_DATETIME = datetime(2027, 6, 18, 0, 0, 0)
 TYT_UNLOCK_TIMESTAMP = TYT_UNLOCK_DATETIME.timestamp()
+
+TR_MONTH_NAMES = [
+    "", "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+]
+TR_MONTH_SHORT = [
+    "", "Oca", "Şub", "Mar", "Nis", "May", "Haz",
+    "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"
+]
+TR_WEEKDAY_NAMES = [
+    "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"
+]
+
+
+def format_turkish_date_full(dt: datetime) -> str:
+    m_name = TR_MONTH_NAMES[dt.month]
+    w_name = TR_WEEKDAY_NAMES[dt.weekday()]
+    return f"{dt.day:02d} {m_name} {dt.year} {w_name} {dt.hour:02d}:{dt.minute:02d}"
+
+
+def format_turkish_date_short(dt: datetime) -> str:
+    m_short = TR_MONTH_SHORT[dt.month]
+    return f"{dt.day:02d} {m_short} {dt.year}"
+
+
+def get_lock_target_presets() -> list:
+    """Custom Lock Chooser için hazır sınav ve kamp hedef şablonlarını döndürür."""
+    now = datetime.now()
+    d_30 = (now + timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+    d_90 = (now + timedelta(days=90)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return [
+        {
+            "id": "yks_2027",
+            "title": "YKS 2027 (TYT / AYT)",
+            "countdown_prefix": "TYT Kilidi",
+            "badge": "YKS 2027",
+            "year": 2027, "month": 6, "day": 18, "hour": 0, "minute": 0,
+            "desc": "18 Haziran 2027 Cuma 00:00 (TYT'den 1 gün öncesi)"
+        },
+        {
+            "id": "yks_2028",
+            "title": "YKS 2028 (TYT / AYT)",
+            "countdown_prefix": "TYT Kilidi",
+            "badge": "YKS 2028",
+            "year": 2028, "month": 6, "day": 16, "hour": 0, "minute": 0,
+            "desc": "16 Haziran 2028 Cuma 00:00 (2028 YKS Hedefi)"
+        },
+        {
+            "id": "kpss_2027",
+            "title": "KPSS Hazırlık Kampı",
+            "countdown_prefix": "KPSS Kilidi",
+            "badge": "KPSS",
+            "year": 2027, "month": 7, "day": 18, "hour": 0, "minute": 0,
+            "desc": "18 Temmuz 2027 Pazar 00:00 (KPSS Genel Kültür / Yetenek)"
+        },
+        {
+            "id": "dgs_2027",
+            "title": "DGS Hazırlık Kampı",
+            "countdown_prefix": "DGS Kilidi",
+            "badge": "DGS",
+            "year": 2027, "month": 6, "day": 20, "hour": 0, "minute": 0,
+            "desc": "20 Haziran 2027 Pazar 00:00 (Dikey Geçiş Sınavı)"
+        },
+        {
+            "id": "ales_2027",
+            "title": "ALES Hazırlık Kampı",
+            "countdown_prefix": "ALES Kilidi",
+            "badge": "ALES",
+            "year": 2027, "month": 5, "day": 16, "hour": 0, "minute": 0,
+            "desc": "16 Mayıs 2027 Pazar 00:00 (ALES İlkbahar Dönemi)"
+        },
+        {
+            "id": "lgs_2027",
+            "title": "LGS Hazırlık Kampı",
+            "countdown_prefix": "LGS Kilidi",
+            "badge": "LGS",
+            "year": 2027, "month": 6, "day": 6, "hour": 0, "minute": 0,
+            "desc": "06 Haziran 2027 Pazar 00:00 (Liselere Geçiş Sınavı)"
+        },
+        {
+            "id": "finaller_30g",
+            "title": "Vize / Final Odak Kampı (+30 Gün)",
+            "countdown_prefix": "Final Kilidi",
+            "badge": "FİNAL",
+            "year": d_30.year, "month": d_30.month, "day": d_30.day, "hour": 0, "minute": 0,
+            "desc": f"{format_turkish_date_full(d_30)} (30 Günlük Yoğun Dönem)"
+        },
+        {
+            "id": "kamp_90g",
+            "title": "90 Günlük Disiplin Kampı",
+            "countdown_prefix": "Kamp Kilidi",
+            "badge": "90 GÜN",
+            "year": d_90.year, "month": d_90.month, "day": d_90.day, "hour": 0, "minute": 0,
+            "desc": f"{format_turkish_date_full(d_90)} (90 Günlük Katı Odak)"
+        },
+        {
+            "id": "custom",
+            "title": "Özel Hedef & Tarih Seçimi",
+            "countdown_prefix": "Hedef Kilidi",
+            "badge": "ODAK",
+            "year": 2027, "month": 6, "day": 18, "hour": 0, "minute": 0,
+            "desc": "Kendi sınav/hedef adınızı ve kilit açılış tarihini aşağıdan belirleyin"
+        },
+    ]
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 DESKTOP_DIR = os.path.join(os.path.expanduser("~"), "Desktop")
@@ -69,14 +170,15 @@ def query_ntp_utc_timestamp() -> float:
 
 class SelfDefenseManager:
     """
-    TYT'den 1 gün öncesine (18 Haziran 2027 Cuma 00:00) kadar:
+    Seçilen Hedef Kilit Tarihine (Varsayılan: 18 Haziran 2027 Cuma 00:00) kadar:
     1) Odak Asistanı uygulama klasörünün, kaynak dosyalarının ve Masaüstü kısayolunun (Odak Asistanı.lnk)
        silinmesini, yeniden adlandırılmasını veya taşınmasını hem Kernel Handle düzeyinde hem de
        NTFS izinleri (icacls Deny Delete) düzeyinde engeller.
     2) Herhangi bir dosya veya kısayol bir şekilde zarar görürse C:\\ProgramData\\OdakAsistaniVault
        yedek kasasından saniyesinde otomatik onarır.
     3) Başlangıç (Registry Run + StartupApproved) kayıtlarını sürekli korur.
-    4) Gerçek NTP zamanı ile 18 Haziran 2027 00:00'a ulaşıldığında tüm silme korumasını ve kilitleri kaldırır.
+    4) Gerçek NTP zamanı ile hedef tarihe ulaşıldığında tüm silme korumasını ve kilitleri kaldırır;
+       kullanıcı Custom Lock Chooser ile yeni bir hedef seçtiğinde korumayı tekrar devreye alır.
     """
 
     def __init__(self):
@@ -87,9 +189,49 @@ class SelfDefenseManager:
         self._last_defense_check_ts = 0.0
         self._protections_released = False
 
+        # Dinamik Kilit Hedefi Bilgileri (Custom Lock Chooser ile güncellenebilir)
+        self.target_preset_id = "yks_2027"
+        self.target_title = "YKS 2027 (TYT / AYT)"
+        self.countdown_prefix = "TYT Kilidi"
+        self.target_badge = "YKS 2027"
+        self.unlock_datetime = TYT_UNLOCK_DATETIME
+        self.unlock_timestamp = float(TYT_UNLOCK_TIMESTAMP)
+        self.unlock_date_str = TYT_UNLOCK_DATE_STR
+        self.unlock_date_short = format_turkish_date_short(TYT_UNLOCK_DATETIME)
+
         # İlk NTP kontrolünü ve korumayı başlat
         self._sync_ntp_offset()
         if not self.is_unlock_date_reached():
+            self.setup_vault_and_protect_all()
+        else:
+            self.release_all_protections()
+
+    def configure_lock_target(
+        self,
+        unlock_ts: float,
+        target_title: str = "YKS 2027 (TYT / AYT)",
+        countdown_prefix: str = "TYT Kilidi",
+        target_badge: str = "YKS 2027",
+        preset_id: str = "yks_2027",
+    ):
+        """Kayıtlı durumdan veya Custom Lock Chooser'dan gelen hedef kilit bilgilerini uygular."""
+        try:
+            dt = datetime.fromtimestamp(float(unlock_ts))
+        except Exception:
+            dt = TYT_UNLOCK_DATETIME
+            unlock_ts = float(TYT_UNLOCK_TIMESTAMP)
+
+        self.target_preset_id = str(preset_id or "custom")
+        self.target_title = str(target_title or "YKS 2027 (TYT / AYT)").strip()
+        self.countdown_prefix = str(countdown_prefix or "TYT Kilidi").strip()
+        self.target_badge = str(target_badge or "YKS 2027").strip()[:14]
+        self.unlock_datetime = dt
+        self.unlock_timestamp = float(unlock_ts)
+        self.unlock_date_str = format_turkish_date_full(dt)
+        self.unlock_date_short = format_turkish_date_short(dt)
+
+        if not self.is_unlock_date_reached():
+            self._protections_released = False
             self.setup_vault_and_protect_all()
         else:
             self.release_all_protections()
@@ -107,7 +249,7 @@ class SelfDefenseManager:
     def get_verified_timestamp(self) -> float:
         """
         Bilgisayar saati ileri alınsa bile gerçek internet zamanına göre doğrulanmış zamanı döndürür.
-        Eğer internet yoksa ve sistem saati şüpheli şekilde 2027 Haziran'a sıçratılmışsa hileyi reddeder.
+        Eğer internet yoksa ve sistem saati şüpheli şekilde hedef tarihe sıçratılmışsa hileyi reddeder.
         """
         now_local = time.time()
         if now_local - self._last_ntp_check_ts >= 300.0:
@@ -116,8 +258,7 @@ class SelfDefenseManager:
         if self._ntp_verified:
             return now_local + self._ntp_offset
 
-        # İnternet yokken kullanıcı saati 2027 Haziran'a çektiyse tekrar NTP dene
-        if now_local >= TYT_UNLOCK_TIMESTAMP:
+        if now_local >= self.unlock_timestamp:
             ntp_ts = query_ntp_utc_timestamp()
             if ntp_ts > 0:
                 self._ntp_offset = ntp_ts - now_local
@@ -126,15 +267,14 @@ class SelfDefenseManager:
         return now_local
 
     def is_unlock_date_reached(self) -> bool:
-        return self.get_verified_timestamp() >= TYT_UNLOCK_TIMESTAMP
+        return self.get_verified_timestamp() >= self.unlock_timestamp
 
     def get_countdown_info(self) -> dict:
         """
-        TYT'den 1 gün öncesine (18 Haziran 2027 00:00:00) kalan süreyi
-        Gün : Saat : Dakika : Saniye olarak döndürür.
+        Hedef kilit açılış tarihine kalan süreyi Gün : Saat : Dakika : Saniye olarak döndürür.
         """
         now_ts = self.get_verified_timestamp()
-        rem = max(0, int(TYT_UNLOCK_TIMESTAMP - now_ts))
+        rem = max(0, int(self.unlock_timestamp - now_ts))
         unlocked = rem <= 0
 
         days, rem_d = divmod(rem, 86400)
@@ -153,8 +293,19 @@ class SelfDefenseManager:
             "seconds": seconds,
             "formatted_full": formatted_full,
             "formatted_short": formatted_short,
-            "unlock_date_str": TYT_UNLOCK_DATE_STR,
-            "exam_date_str": TYT_EXAM_DATE_STR,
+            "unlock_date_str": self.unlock_date_str,
+            "unlock_date_short": self.unlock_date_short,
+            "exam_date_str": self.target_title,
+            "target_title": self.target_title,
+            "countdown_prefix": self.countdown_prefix,
+            "target_badge": self.target_badge,
+            "preset_id": self.target_preset_id,
+            "unlock_timestamp": self.unlock_timestamp,
+            "year": self.unlock_datetime.year,
+            "month": self.unlock_datetime.month,
+            "day": self.unlock_datetime.day,
+            "hour": self.unlock_datetime.hour,
+            "minute": self.unlock_datetime.minute,
         }
 
     # ------------------------------------------------------------------

@@ -219,6 +219,7 @@ class BlockerEngine:
         self.emergency_last_used_ts = 0.0
         self.emergency_saved_blocked_ids = []
         self.tyt_auto_unlocked = False
+        self.lock_target_committed = False
 
         self._audio_detector = None
         self._media_monitor = None
@@ -500,6 +501,20 @@ class BlockerEngine:
                                         self.items[rid]["blocked"] = True
                                         self.items[rid]["until_ts"] = 0.0
 
+                    if "lock_target" in data and isinstance(data["lock_target"], dict):
+                        lt = data["lock_target"]
+                        self.lock_target_committed = bool(lt.get("committed", True))
+                        self.self_defense.configure_lock_target(
+                            unlock_ts=float(lt.get("unlock_timestamp", self.self_defense.unlock_timestamp)),
+                            target_title=str(lt.get("target_title", "YKS 2027 (TYT / AYT)")),
+                            countdown_prefix=str(lt.get("countdown_prefix", "TYT Kilidi")),
+                            target_badge=str(lt.get("target_badge", "YKS 2027")),
+                            preset_id=str(lt.get("preset_id", "yks_2027")),
+                        )
+                    else:
+                        # Mevcut state.json varsa Katı Koruma (18 Haziran 2027) zaten aktiftir
+                        self.lock_target_committed = True
+
                     self.tyt_auto_unlocked = bool(data.get("tyt_auto_unlocked", False))
                     if self.self_defense.is_unlock_date_reached():
                         if not self.tyt_auto_unlocked:
@@ -509,7 +524,7 @@ class BlockerEngine:
                                 item["until_ts"] = 0.0
                             self.self_defense.release_all_protections()
                     else:
-                        # TYT'den 1 gün öncesine (18 Haziran 2027) kadar Antigravity'nin seçtiği
+                        # Hedef kilit tarihine kadar Antigravity'nin seçtiği
                         # tüm dopamin tuzağı siteleri (mola veya acil durum aktif değilse) kilitli tut!
                         active_break_ids = {self.reward_break_item_id} | set(self.reward_break_related_ids)
                         for item_id, item in self.items.items():
@@ -590,6 +605,14 @@ class BlockerEngine:
                     "settings": self.settings,
                     "stats": self.stats,
                     "tyt_auto_unlocked": self.tyt_auto_unlocked,
+                    "lock_target": {
+                        "preset_id": self.self_defense.target_preset_id,
+                        "target_title": self.self_defense.target_title,
+                        "countdown_prefix": self.self_defense.countdown_prefix,
+                        "target_badge": self.self_defense.target_badge,
+                        "unlock_timestamp": self.self_defense.unlock_timestamp,
+                        "committed": self.lock_target_committed,
+                    },
                     "timer": {
                         "timer_active": self.timer_active,
                         "timer_end_ts": self.timer_end_ts,
@@ -1784,10 +1807,75 @@ class BlockerEngine:
                 self.is_study_counting = False
 
     def get_tyt_countdown(self) -> dict:
-        return self.self_defense.get_countdown_info()
+        info = self.self_defense.get_countdown_info()
+        info["committed"] = bool(self.lock_target_committed)
+        return info
 
     def is_tyt_unlocked(self) -> bool:
         return self.self_defense.is_unlock_date_reached()
+
+    def update_lock_target(
+        self,
+        new_unlock_dt: datetime,
+        target_title: str,
+        countdown_prefix: str = "Hedef Kilidi",
+        target_badge: str = "ODAK",
+        preset_id: str = "custom",
+    ) -> tuple:
+        """
+        Custom Lock Chooser (Özel Kilit Hedefi & Tarih Seçici) ayarlarını kaydeder.
+        Katı Koruma Kuralı:
+        - Eğer mevcut bir kilit aktifse (süresi henüz dolmamışsa) ve daha önce kilit onaylanmışsa (committed),
+          kullanıcı tarihi YALNIZCA mevcut tarihten ileriye uzatabilir veya adını değiştirebilir;
+          tarihi erkene çekerek kilidi erken açma hilesi yapamaz!
+        - Mevcut kilit süresi dolduğunda (TYT/hedef bittiğinde) veya ilk kurulumda ise
+          gelecekteki herhangi bir tarih serbestçe seçilip yeni kilit başlatılabilir.
+        """
+        now_ts = self.self_defense.get_verified_timestamp()
+        new_ts = float(new_unlock_dt.timestamp())
+        cur_ts = float(self.self_defense.unlock_timestamp)
+        cur_unlocked = (now_ts >= cur_ts)
+
+        if new_ts <= now_ts + 60:
+            return False, "⚠️ Seçilen kilit açılış tarihi gelecekte bir tarih olmalıdır!"
+
+        with self.lock:
+            if self.lock_target_committed and not cur_unlocked:
+                # Mevcut kilit hâlâ aktif: Tarih erkene çekilemez!
+                if new_ts < (cur_ts - 60):
+                    return (
+                        False,
+                        f"⛔ Katı Koruma Aktif: Mevcut kilit süresi ({self.self_defense.unlock_date_str}) dolmadan "
+                        f"bitiş tarihini erkene çekemezsiniz! Tarihi yalnızca ileriye uzatabilir veya mevcut hedef bittiğinde yeni bir tarih seçebilirsiniz.",
+                    )
+
+            clean_title = (target_title or "Özel Odak Hedefi").strip()
+            clean_prefix = (countdown_prefix or "Hedef Kilidi").strip()
+            clean_badge = (target_badge or "ODAK").strip()[:14]
+
+            self.self_defense.configure_lock_target(
+                unlock_ts=new_ts,
+                target_title=clean_title,
+                countdown_prefix=clean_prefix,
+                target_badge=clean_badge,
+                preset_id=preset_id,
+            )
+            self.lock_target_committed = True
+            self.tyt_auto_unlocked = False
+
+            # Kilit bittikten sonra yeni bir hedef seçildiyse Antigravity koruma paketini tekrar kilitle
+            active_break_ids = {self.reward_break_item_id} | set(self.reward_break_related_ids)
+            for item_id, item in self.items.items():
+                if item.get("antigravity_pick"):
+                    if not self.emergency_active and item_id not in active_break_ids:
+                        item["blocked"] = True
+
+        self.sync_hosts_file()
+        self.enforce_processes_once()
+        self.enforce_browser_tabs_once()
+        self.add_log(f"🔒 Kilit Hedefi Güncellendi: {clean_title} → {self.self_defense.unlock_date_str}")
+        self._notify_change()
+        return True, f"✅ Yeni Kilit Hedefi aktif: {clean_title} (Kilit Açılışı: {self.self_defense.unlock_date_str})"
 
     def _check_expirations(self):
         """Ödül molasının, 30 dk Acil Durum modunun, TYT kilit açılış tarihinin ve odak sayacının süresini kontrol eder."""

@@ -15,6 +15,7 @@ from ctypes import wintypes
 import math
 import os
 import sys
+from datetime import datetime
 import threading
 import time
 import winreg
@@ -36,6 +37,7 @@ import pystray
 
 from blocker_engine import BlockerEngine, is_admin
 from nlp_parser import CommandParser
+from self_defense import get_lock_target_presets, TR_MONTH_NAMES, format_turkish_date_full
 from study_tracker import (
     SUBJECT_DEFINITIONS,
     STUDY_GOAL_OPTIONS,
@@ -364,6 +366,7 @@ class OdakAsistaniApp(ctk.CTk):
         self.reward_popup_win = None
         self.emergency_confirm_win = None
         self.break_settings_win = None
+        self.custom_lock_win = None
 
         # Zero-Flicker (In-Place) görünüm referansları ve imza önbellekleri
         self._stats_built = False
@@ -433,7 +436,7 @@ class OdakAsistaniApp(ctk.CTk):
         self.grid_rowconfigure(2, weight=1)
 
         # --------------------------------------------------------------
-        # 1. ÜST HEADER BAR (Özgün Odak Amblemi + Canlı Durum + TYT Sayacı + Acil Durum)
+        # 1. ÜST HEADER BAR (Özgün Odak Amblemi + Canlı Durum + Kilit Hedefi Sayacı + Acil Durum)
         # --------------------------------------------------------------
         top_bar = ctk.CTkFrame(self, fg_color="transparent")
         top_bar.grid(row=0, column=0, sticky="ew", padx=24, pady=(16, 10))
@@ -464,20 +467,22 @@ class OdakAsistaniApp(ctk.CTk):
             text_color=TEXT_PRIMARY
         ).pack(side="left")
 
-        pro_pill = ctk.CTkFrame(
+        init_cd = self.engine.get_tyt_countdown()
+        self.header_badge_btn = ctk.CTkButton(
             title_line,
+            text=init_cd.get("target_badge", "YKS 2027"),
+            font=self._font(10, "bold"),
             fg_color="#1c1c22",
+            hover_color=BG_ELEVATED_HOVER,
+            text_color="#e4e4e7",
             border_color="#3f3f46",
             border_width=1,
-            corner_radius=8
+            height=22,
+            width=66,
+            corner_radius=8,
+            command=self._open_custom_lock_chooser_popup
         )
-        pro_pill.pack(side="left", padx=(8, 0), pady=2)
-        ctk.CTkLabel(
-            pro_pill,
-            text="YKS 2027",
-            font=self._font(10, "bold"),
-            text_color="#e4e4e7"
-        ).pack(padx=7, pady=1)
+        self.header_badge_btn.pack(side="left", padx=(8, 0), pady=2)
 
         # Orta-Sol: Canlı Kilit Durumu Rozeti
         status_chip = ctk.CTkFrame(
@@ -498,26 +503,24 @@ class OdakAsistaniApp(ctk.CTk):
         )
         self.status_label.pack(padx=14, pady=6)
 
-        # Sağ: TYT Geri Sayım Rozeti + Yönetici İzni + Acil Durum Butonu
+        # Sağ: Kilit Hedefi & Geri Sayım Seçici (Custom Lock Chooser) + Yönetici İzni + Acil Durum Butonu
         right_btns = ctk.CTkFrame(top_bar, fg_color="transparent")
         right_btns.grid(row=0, column=2, sticky="e")
 
-        tyt_chip = ctk.CTkFrame(
+        self.tyt_countdown_label = ctk.CTkButton(
             right_btns,
-            fg_color=BG_SURFACE,
-            border_color=BORDER_SUBTLE,
-            border_width=1,
-            corner_radius=18
-        )
-        tyt_chip.pack(side="left", padx=(0, 10))
-
-        self.tyt_countdown_label = ctk.CTkLabel(
-            tyt_chip,
-            text="TYT Kilidi: --G --S --D --Sn",
+            text=f"🔒 {init_cd.get('countdown_prefix', 'TYT Kilidi')}: --G --S --D --Sn  ▾",
             font=self._font(12, "bold"),
-            text_color=TEXT_PRIMARY
+            fg_color=BG_SURFACE,
+            hover_color=BG_ELEVATED_HOVER,
+            text_color=TEXT_PRIMARY,
+            border_color=BORDER_DEFAULT,
+            border_width=1,
+            height=34,
+            corner_radius=17,
+            command=self._open_custom_lock_chooser_popup
         )
-        self.tyt_countdown_label.pack(padx=14, pady=6)
+        self.tyt_countdown_label.pack(side="left", padx=(0, 10))
 
         if not is_admin():
             ctk.CTkButton(
@@ -1848,9 +1851,9 @@ class OdakAsistaniApp(ctk.CTk):
         selected_label = self.new_source_cat_menu.get()
         chosen_sid = self._cat_label_to_id.get(selected_label, "soru_cozum")
 
-        ok, msg, _src = self.engine.add_study_source(raw_url, chosen_sid)
+        src_obj, msg = self.engine.add_study_source(raw_url, chosen_sid)
         self._ui_dirty = False
-        if ok:
+        if src_obj:
             self.new_source_entry.delete(0, "end")
             self.feedback_label.configure(text=msg, text_color=ACCENT_EMERALD_TEXT)
             self._sync_sources_view()
@@ -1970,12 +1973,15 @@ class OdakAsistaniApp(ctk.CTk):
                 corner_radius=14
             )
             ag_banner.grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=(4, 10))
+            cd_now = self.engine.get_tyt_countdown()
+            target_dt_str = cd_now.get("unlock_date_str", "18 Haziran 2027")
+            t_title = cd_now.get("target_title", "YKS 2027")
             ctk.CTkLabel(
                 ag_banner,
                 text=(
-                    f"Antigravity Koruma Paketi  •  {len(filtered)} Kategori ({total_domains} Alan Adı Kilitli)\n"
+                    f"Antigravity Koruma Paketi  •  {len(filtered)} Kategori ({total_domains} Alan Adı Kilitli)  •  Hedef: {t_title}\n"
                     f"Sosyal Medya, Reels, Yayın, Dizi/Film, Anime, Web Oyunları, Alışveriş ve AI Sohbet siteleri "
-                    f"18 Haziran 2027'ye kadar koruma altında."
+                    f"{target_dt_str} tarihine kadar koruma altında."
                 ),
                 font=self._font(12, "bold"),
                 text_color=TEXT_SECONDARY,
@@ -2738,6 +2744,395 @@ class OdakAsistaniApp(ctk.CTk):
             command=_on_save
         ).grid(row=0, column=1, sticky="ew", padx=(8, 0))
 
+    def _open_custom_lock_chooser_popup(self):
+        """Sağ üstteki sayaç rozetine veya sol üstteki hedef rozetine tıklandığında açılan Custom Lock Chooser."""
+        if self.custom_lock_win is not None and self.custom_lock_win.winfo_exists():
+            try:
+                self.custom_lock_win.lift()
+                self.custom_lock_win.focus_force()
+            except Exception:
+                pass
+            return
+
+        cd = self.engine.get_tyt_countdown()
+        presets = get_lock_target_presets()
+        preset_map = {p["title"]: p for p in presets}
+
+        win_w, win_h = 680, 560
+        win = ctk.CTkToplevel(self)
+        win.title("Özel Kilit Hedefi & Tarih Seçici (Custom Lock Chooser)")
+        win.geometry(f"{win_w}x{win_h}")
+        win.resizable(False, False)
+        win.configure(fg_color=BG_CANVAS)
+        win.attributes("-topmost", True)
+        self.custom_lock_win = win
+
+        def _on_close():
+            try:
+                if win.winfo_exists():
+                    win.destroy()
+            except Exception:
+                pass
+            self.custom_lock_win = None
+
+        win.protocol("WM_DELETE_WINDOW", _on_close)
+        win.after(40, lambda: apply_windows_dark_titlebar(win))
+        win.after(80, lambda: self._force_window_on_top(win, win_w, win_h, break_fullscreen=False))
+
+        # 1. ÜST BAŞLIK & KATI KORUMA BİLGİ BARI
+        hdr = ctk.CTkFrame(
+            win,
+            fg_color=BG_SURFACE,
+            border_color=BORDER_SUBTLE,
+            border_width=1,
+            corner_radius=14
+        )
+        hdr.pack(fill="x", padx=20, pady=(18, 10))
+
+        ctk.CTkLabel(
+            hdr,
+            text="🔒 Özel Kilit Hedefi & Sınav Tarih Seçici (Custom Lock Chooser)",
+            font=self._font(16, "bold"),
+            text_color=TEXT_PRIMARY,
+            anchor="w"
+        ).pack(fill="x", padx=16, pady=(12, 3))
+
+        is_strict_locked = bool(cd.get("committed", True) and not cd.get("unlocked", False))
+        strict_msg = (
+            f"🛡 Katı Koruma Aktif: Mevcut kilit tarihi ({cd['unlock_date_str']}) dolmadan bitiş tarihini erkene çekemezsiniz. "
+            f"Tarihi daha ileri bir sınava/hedefe uzatabilir, hedef adını değiştirebilir veya mevcut süre bittiğinde yeni bir kilit başlatabilirsiniz."
+            if is_strict_locked
+            else "✨ Yeni Kilit Hedefi Seçime Açık: Hazır sınav/kamp şablonlarından birini seçebilir veya kendi özel hedef adınızı ve bitiş tarihinizi belirleyebilirsiniz."
+        )
+        ctk.CTkLabel(
+            hdr,
+            text=strict_msg,
+            font=self._font(11),
+            text_color=ACCENT_AMBER if is_strict_locked else ACCENT_EMERALD_TEXT,
+            anchor="w",
+            justify="left",
+            wraplength=610
+        ).pack(fill="x", padx=16, pady=(0, 12))
+
+        # 2. HAZIR SINAV / HEDEF ŞABLONU SEÇİCİ KARTI
+        preset_card = ctk.CTkFrame(
+            win,
+            fg_color=BG_SURFACE,
+            border_color=BORDER_SUBTLE,
+            border_width=1,
+            corner_radius=14
+        )
+        preset_card.pack(fill="x", padx=20, pady=(0, 10))
+
+        p_row = ctk.CTkFrame(preset_card, fg_color="transparent")
+        p_row.pack(fill="x", padx=16, pady=12)
+        p_row.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            p_row,
+            text="HAZIR SINAV / KAMP ŞABLONU:",
+            font=self._font(12, "bold"),
+            text_color=TEXT_SECONDARY,
+            anchor="w"
+        ).grid(row=0, column=0, sticky="w", padx=(0, 12))
+
+        preset_menu = ctk.CTkOptionMenu(
+            p_row,
+            values=list(preset_map.keys()),
+            font=self._font(13, "bold"),
+            fg_color=BG_ELEVATED,
+            button_color=BG_ELEVATED_HOVER,
+            button_hover_color="#3f3f46",
+            dropdown_fg_color=BG_CARD,
+            text_color=TEXT_PRIMARY,
+            height=36,
+            corner_radius=10
+        )
+        preset_menu.grid(row=0, column=1, sticky="ew")
+
+        # 3. ÖZEL HEDEF İSMİ VE TARİH / SAAT (GÜN / AY / YIL) SEÇİCİ KARTI
+        custom_card = ctk.CTkFrame(
+            win,
+            fg_color=BG_SURFACE,
+            border_color=BORDER_SUBTLE,
+            border_width=1,
+            corner_radius=14
+        )
+        custom_card.pack(fill="x", padx=20, pady=(0, 10))
+
+        ctk.CTkLabel(
+            custom_card,
+            text="HEDEF İSMİ, ROZETİ VE KİLİT AÇILIŞ TARİHİ",
+            font=self._font(12, "bold"),
+            text_color=TEXT_SECONDARY,
+            anchor="w"
+        ).pack(fill="x", padx=16, pady=(12, 8))
+
+        fields_row = ctk.CTkFrame(custom_card, fg_color="transparent")
+        fields_row.pack(fill="x", padx=16, pady=(0, 10))
+        fields_row.grid_columnconfigure(0, weight=3)
+        fields_row.grid_columnconfigure(1, weight=2)
+        fields_row.grid_columnconfigure(2, weight=1)
+
+        # Hedef Adı
+        col_title = ctk.CTkFrame(fields_row, fg_color="transparent")
+        col_title.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+        ctk.CTkLabel(col_title, text="Hedef / Sınav Adı:", font=self._font(11, "bold"), text_color=TEXT_MUTED).pack(anchor="w")
+        title_entry = ctk.CTkEntry(
+            col_title,
+            height=36,
+            font=self._font(13, "bold"),
+            fg_color=BG_INPUT,
+            text_color=TEXT_PRIMARY,
+            border_color=BORDER_DEFAULT,
+            border_width=1,
+            corner_radius=9
+        )
+        title_entry.pack(fill="x", pady=(3, 0))
+        title_entry.insert(0, cd.get("target_title", "YKS 2027 (TYT / AYT)"))
+
+        # Sayaç Başlığı
+        col_pref = ctk.CTkFrame(fields_row, fg_color="transparent")
+        col_pref.grid(row=0, column=1, sticky="ew", padx=4)
+        ctk.CTkLabel(col_pref, text="Sayaç Etiketi (Örn: TYT Kilidi):", font=self._font(11, "bold"), text_color=TEXT_MUTED).pack(anchor="w")
+        prefix_entry = ctk.CTkEntry(
+            col_pref,
+            height=36,
+            font=self._font(13, "bold"),
+            fg_color=BG_INPUT,
+            text_color=TEXT_PRIMARY,
+            border_color=BORDER_DEFAULT,
+            border_width=1,
+            corner_radius=9
+        )
+        prefix_entry.pack(fill="x", pady=(3, 0))
+        prefix_entry.insert(0, cd.get("countdown_prefix", "TYT Kilidi"))
+
+        # Üst Bar Rozeti
+        col_badge = ctk.CTkFrame(fields_row, fg_color="transparent")
+        col_badge.grid(row=0, column=2, sticky="ew", padx=(8, 0))
+        ctk.CTkLabel(col_badge, text="Üst Rozet:", font=self._font(11, "bold"), text_color=TEXT_MUTED).pack(anchor="w")
+        badge_entry = ctk.CTkEntry(
+            col_badge,
+            height=36,
+            font=self._font(13, "bold"),
+            fg_color=BG_INPUT,
+            text_color=TEXT_PRIMARY,
+            border_color=BORDER_DEFAULT,
+            border_width=1,
+            corner_radius=9
+        )
+        badge_entry.pack(fill="x", pady=(3, 0))
+        badge_entry.insert(0, cd.get("target_badge", "YKS 2027"))
+
+        # Gün / Ay / Yıl / Saat Seçici Satırı
+        date_row = ctk.CTkFrame(custom_card, fg_color="transparent")
+        date_row.pack(fill="x", padx=16, pady=(2, 14))
+        for c_i in range(4):
+            date_row.grid_columnconfigure(c_i, weight=1)
+
+        day_vals = [f"{d:02d}" for d in range(1, 32)]
+        month_vals = [f"{m:02d} - {TR_MONTH_NAMES[m]}" for m in range(1, 13)]
+        cur_yr = datetime.now().year
+        year_vals = [str(y) for y in range(cur_yr, cur_yr + 10)]
+        time_vals = ["00:00", "06:00", "08:00", "09:00", "10:00", "12:00", "18:00", "20:00", "23:59"]
+
+        def _make_date_col(parent, col_idx, lbl_text, values, init_val, pad_x):
+            f = ctk.CTkFrame(parent, fg_color="transparent")
+            f.grid(row=0, column=col_idx, sticky="ew", padx=pad_x)
+            ctk.CTkLabel(f, text=lbl_text, font=self._font(11, "bold"), text_color=TEXT_MUTED).pack(anchor="w")
+            om = ctk.CTkOptionMenu(
+                f,
+                values=values,
+                font=self._font(13, "bold"),
+                fg_color=BG_ELEVATED,
+                button_color=BG_ELEVATED_HOVER,
+                button_hover_color="#3f3f46",
+                dropdown_fg_color=BG_CARD,
+                text_color=TEXT_PRIMARY,
+                height=36,
+                corner_radius=9
+            )
+            om.pack(fill="x", pady=(3, 0))
+            if init_val in values:
+                om.set(init_val)
+            return om
+
+        init_day = f"{int(cd.get('day', 18)):02d}"
+        init_m_num = int(cd.get("month", 6))
+        init_month = f"{init_m_num:02d} - {TR_MONTH_NAMES[init_m_num]}"
+        init_year = str(cd.get("year", 2027))
+        init_time = f"{int(cd.get('hour', 0)):02d}:{int(cd.get('minute', 0)):02d}"
+        if init_time not in time_vals:
+            time_vals.insert(0, init_time)
+
+        day_menu = _make_date_col(date_row, 0, "Gün:", day_vals, init_day, (0, 6))
+        month_menu = _make_date_col(date_row, 1, "Ay:", month_vals, init_month, 6)
+        year_menu = _make_date_col(date_row, 2, "Yıl:", year_vals, init_year, 6)
+        time_menu = _make_date_col(date_row, 3, "Saat:", time_vals, init_time, (6, 0))
+
+        # 4. CANLI ÖNİZLEME VE DOĞRULAMA KUTUSU
+        preview_card = ctk.CTkFrame(
+            win,
+            fg_color=BG_INPUT,
+            border_color=BORDER_STRONG,
+            border_width=1,
+            corner_radius=12
+        )
+        preview_card.pack(fill="x", padx=20, pady=(0, 14))
+
+        preview_lbl = ctk.CTkLabel(
+            preview_card,
+            text="",
+            font=self._font(12, "bold"),
+            text_color=ACCENT_EMERALD_TEXT,
+            anchor="w",
+            justify="left",
+            wraplength=610
+        )
+        preview_lbl.pack(fill="x", padx=14, pady=10)
+
+        selected_preset_state = {"id": cd.get("preset_id", "yks_2027")}
+
+        def _build_selected_datetime():
+            try:
+                y = int(year_menu.get())
+                m = int(month_menu.get().split("-")[0].strip())
+                d = int(day_menu.get())
+                hm = time_menu.get().split(":")
+                hr, mn = int(hm[0]), int(hm[1])
+                # Ayın son gününü aşarsa otomatik düzelt (örn. 31 Şubat -> 28/29 Şubat)
+                for try_d in range(d, 27, -1):
+                    try:
+                        return datetime(y, m, try_d, hr, mn, 0)
+                    except ValueError:
+                        continue
+                return datetime(y, m, 28, hr, mn, 0)
+            except Exception:
+                return datetime(2027, 6, 18, 0, 0, 0)
+
+        def _refresh_preview(*_args):
+            dt = _build_selected_datetime()
+            now_ts = self.engine.self_defense.get_verified_timestamp()
+            cur_ts = float(cd.get("unlock_timestamp", 0.0))
+            new_ts = dt.timestamp()
+            diff_sec = int(new_ts - now_ts)
+            d_cnt = max(0, diff_sec // 86400)
+            h_cnt = max(0, (diff_sec % 86400) // 3600)
+            t_name = title_entry.get().strip() or "Özel Odak Hedefi"
+
+            if diff_sec <= 60:
+                preview_lbl.configure(
+                    text=f"⚠️ Seçilen Tarih Geçmişte: {format_turkish_date_full(dt)} — Lütfen gelecekte bir tarih seçin.",
+                    text_color=ACCENT_ROSE
+                )
+            elif is_strict_locked and new_ts < (cur_ts - 60):
+                preview_lbl.configure(
+                    text=(
+                        f"⛔ Katı Koruma Engeli: Seçilen tarih ({format_turkish_date_full(dt)}) mevcut kilit tarihinden "
+                        f"({cd['unlock_date_str']}) daha erken! Yalnızca mevcut tarihten ileri bir tarih seçebilirsiniz."
+                    ),
+                    text_color=ACCENT_ROSE
+                )
+            else:
+                preview_lbl.configure(
+                    text=(
+                        f"🎯 Seçilen Hedef: {t_name}  •  Kilit Açılışı: {format_turkish_date_full(dt)}\n"
+                        f"⏳ Toplam Koruma Süresi: {d_cnt} Gün {h_cnt} Saat boyunca tüm dikkat dağıtıcılar kilitli kalacak."
+                    ),
+                    text_color=ACCENT_EMERALD_TEXT
+                )
+
+        def _on_preset_selected(selected_title: str):
+            p = preset_map.get(selected_title)
+            if not p:
+                return
+            selected_preset_state["id"] = p["id"]
+            if p["id"] != "custom":
+                title_entry.delete(0, "end")
+                title_entry.insert(0, p["title"])
+                prefix_entry.delete(0, "end")
+                prefix_entry.insert(0, p["countdown_prefix"])
+                badge_entry.delete(0, "end")
+                badge_entry.insert(0, p["badge"])
+                day_menu.set(f"{int(p['day']):02d}")
+                m_idx = int(p["month"])
+                month_menu.set(f"{m_idx:02d} - {TR_MONTH_NAMES[m_idx]}")
+                if str(p["year"]) in year_vals:
+                    year_menu.set(str(p["year"]))
+                time_menu.set(f"{int(p['hour']):02d}:{int(p['minute']):02d}")
+            _refresh_preview()
+
+        preset_menu.configure(command=_on_preset_selected)
+        day_menu.configure(command=_refresh_preview)
+        month_menu.configure(command=_refresh_preview)
+        year_menu.configure(command=_refresh_preview)
+        time_menu.configure(command=_refresh_preview)
+        title_entry.bind("<KeyRelease>", _refresh_preview)
+
+        # Mevcut şablonu seçili göster
+        cur_p_id = cd.get("preset_id", "yks_2027")
+        for p in presets:
+            if p["id"] == cur_p_id:
+                preset_menu.set(p["title"])
+                break
+        _refresh_preview()
+
+        # 5. ALT KAYDET / VAZGEÇ BUTONLARI
+        btn_bar = ctk.CTkFrame(win, fg_color="transparent")
+        btn_bar.pack(fill="x", padx=20, pady=(0, 18))
+        btn_bar.grid_columnconfigure(0, weight=1)
+        btn_bar.grid_columnconfigure(1, weight=2)
+
+        def _on_save_lock():
+            dt = _build_selected_datetime()
+            t_title = title_entry.get().strip() or "Özel Odak Hedefi"
+            t_prefix = prefix_entry.get().strip() or "Hedef Kilidi"
+            t_badge = badge_entry.get().strip() or "ODAK"
+
+            ok, msg = self.engine.update_lock_target(
+                new_unlock_dt=dt,
+                target_title=t_title,
+                countdown_prefix=t_prefix,
+                target_badge=t_badge,
+                preset_id=selected_preset_state["id"],
+            )
+            if not ok:
+                preview_lbl.configure(text=msg, text_color=ACCENT_ROSE)
+                return
+
+            self._last_tyt_sig = None
+            self.feedback_label.configure(text=msg, text_color=ACCENT_EMERALD_TEXT)
+            self._switch_active_view(force_rebuild=True)
+            self._refresh_status()
+            _on_close()
+
+        ctk.CTkButton(
+            btn_bar,
+            text="Vazgeç",
+            font=self._font(13, "bold"),
+            fg_color=BG_ELEVATED,
+            hover_color=BG_ELEVATED_HOVER,
+            text_color=TEXT_PRIMARY,
+            height=42,
+            corner_radius=10,
+            border_width=0,
+            command=_on_close
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 8))
+
+        ctk.CTkButton(
+            btn_bar,
+            text="Hedefi Kaydet ve Kilidi Uygula",
+            font=self._font(13, "bold"),
+            fg_color=ACCENT_EMERALD,
+            hover_color="#059669",
+            text_color="#052e16",
+            height=42,
+            corner_radius=10,
+            border_width=0,
+            command=_on_save_lock
+        ).grid(row=0, column=1, sticky="ew", padx=(8, 0))
+
     def _show_reward_popup(self):
         self._switch_active_view(force_rebuild=False)
         self._refresh_status()
@@ -3088,27 +3483,40 @@ class OdakAsistaniApp(ctk.CTk):
             # Ders Sürelerim sekmesi açıksa canlı sayaçları sıfır titremeyle güncelle
             self._sync_subject_stats_view(focus_stopped_entry=False)
 
-        # TYT Kilit Açılış Geri Sayım Sayacını Sadece Saniye Değiştiğinde Güncelle
+        # Kilit Açılış Geri Sayım Sayacını Sadece Saniye veya Hedef Değiştiğinde Güncelle
         cd = self.engine.get_tyt_countdown()
-        tyt_sig = (cd["unlocked"], cd["days"], cd["hours"], cd["minutes"], cd["seconds"])
+        tyt_sig = (
+            cd["unlocked"],
+            cd["days"],
+            cd["hours"],
+            cd["minutes"],
+            cd["seconds"],
+            cd.get("countdown_prefix", "TYT Kilidi"),
+            cd.get("target_badge", "YKS 2027"),
+            cd.get("unlock_date_short", "18 Haz 2027"),
+        )
         if getattr(self, "_last_tyt_sig", None) != tyt_sig:
             self._last_tyt_sig = tyt_sig
+            prefix_lbl = cd.get("countdown_prefix", "TYT Kilidi")
+            short_dt = cd.get("unlock_date_short", "18 Haz 2027")
+            badge_txt = cd.get("target_badge", "YKS 2027")
+            self.header_badge_btn.configure(text=badge_txt)
             if cd["unlocked"]:
                 self.tyt_info_label.configure(
-                    text="18 Haz 2027 • Tüm Kilitler Açıldı",
+                    text=f"{short_dt} • Süre Doldu (Yeni Hedef Seçmek İçin Sağ Üstteki Sayaca Tıklayın)",
                     text_color=ACCENT_EMERALD_TEXT
                 )
                 self.tyt_countdown_label.configure(
-                    text="TYT Kilidi Açıldı — Başarılar!",
+                    text=f"🔓 {prefix_lbl} Açıldı — Yeni Hedef Seç  ▾",
                     text_color=ACCENT_EMERALD_TEXT
                 )
             else:
                 self.tyt_info_label.configure(
-                    text="Kilit Açılışı: 18 Haz 2027 • Silinemezlik Aktif",
+                    text=f"Kilit Açılışı: {short_dt} • Silinemezlik Aktif",
                     text_color=TEXT_MUTED
                 )
                 self.tyt_countdown_label.configure(
-                    text=f"TYT Kilidi: {cd['days']:02d}G {cd['hours']:02d}S {cd['minutes']:02d}D {cd['seconds']:02d}Sn",
+                    text=f"🔒 {prefix_lbl}: {cd['days']:02d}G {cd['hours']:02d}S {cd['minutes']:02d}D {cd['seconds']:02d}Sn  ▾",
                     text_color=ACCENT_CYAN
                 )
 
