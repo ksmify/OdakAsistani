@@ -392,6 +392,9 @@ class OdakAsistaniApp(ctk.CTk):
         self.tutorial_win = None
         self.custom_lock_win = None
         self.break_settings_win = None
+        self._popup_trigger_btn_ref = None
+        self._popup_trigger_desc_ref = None
+        self.bottom_trigger_toggle_btn = None
         self.tutorial_overlay = None
         self._tutorial_anim_job = None
         self._tutorial_particles = []
@@ -832,8 +835,24 @@ class OdakAsistaniApp(ctk.CTk):
             progress_color=ACCENT_EMERALD,
             corner_radius=3
         )
-        self.study_progress.grid(row=1, column=0, columnspan=3, sticky="ew", padx=(16, 6), pady=(2, 10))
+        self.study_progress.grid(row=1, column=0, columnspan=4, sticky="ew", padx=(16, 6), pady=(2, 10))
         self.study_progress.set(0.0)
+
+        self.bottom_trigger_toggle_btn = ctk.CTkButton(
+            bottom_bar,
+            text="Tetikleyiciyi Kapat",
+            font=self._font(12, "bold"),
+            fg_color="#27272a",
+            hover_color="#3f3f46",
+            text_color=TEXT_PRIMARY,
+            border_color="#52525b",
+            border_width=1,
+            height=28,
+            width=150,
+            corner_radius=14,
+            command=self._on_toggle_video_trigger
+        )
+        self.bottom_trigger_toggle_btn.grid(row=0, column=3, padx=(0, 8), pady=(10, 4), sticky="e")
 
         self._gear_ctk_img = create_settings_gear_ctk()
         self.break_bar_settings_btn = ctk.CTkButton(
@@ -849,7 +868,7 @@ class OdakAsistaniApp(ctk.CTk):
             border_width=1,
             command=self._open_break_bar_settings_popup
         )
-        self.break_bar_settings_btn.grid(row=0, column=3, rowspan=2, padx=(6, 14), pady=8, sticky="e")
+        self.break_bar_settings_btn.grid(row=0, column=4, rowspan=2, padx=(4, 14), pady=8, sticky="e")
 
     def _update_nav_tab_styles(self):
         for t_name, btn in self._nav_buttons.items():
@@ -2492,7 +2511,7 @@ class OdakAsistaniApp(ctk.CTk):
             cur_goal = int(self.engine.study_goal_seconds)
             cur_break = int(self.engine.reward_break_minutes)
 
-        pop_w, pop_h = 660, 515
+        pop_w, pop_h = 660, 585
         win = ctk.CTkToplevel(self)
         win.title("Mola Barajı Ayarları")
         win.geometry(f"{pop_w}x{pop_h}")
@@ -2752,6 +2771,54 @@ class OdakAsistaniApp(ctk.CTk):
 
         _refresh_selection_ui()
 
+        # 3. Video Algılama Tetikleyicisi Kartı
+        trigger_card = ctk.CTkFrame(
+            win,
+            fg_color=BG_SURFACE,
+            border_color=BORDER_SUBTLE,
+            border_width=1,
+            corner_radius=14
+        )
+        trigger_card.pack(fill="x", padx=22, pady=(0, 14))
+
+        trig_row = ctk.CTkFrame(trigger_card, fg_color="transparent")
+        trig_row.pack(fill="x", padx=16, pady=10)
+
+        trig_info_col = ctk.CTkFrame(trig_row, fg_color="transparent")
+        trig_info_col.pack(side="left", fill="x", expand=True)
+
+        ctk.CTkLabel(
+            trig_info_col,
+            text="VİDEO DERS ALGILAMA TETİKLEYİCİSİ",
+            font=self._font(11, "bold"),
+            text_color=TEXT_SECONDARY,
+            anchor="w"
+        ).pack(fill="x")
+
+        pop_trig_desc_lbl = ctk.CTkLabel(
+            trig_info_col,
+            text="",
+            font=self._font(12),
+            text_color=TEXT_PRIMARY,
+            anchor="w",
+            justify="left"
+        )
+        pop_trig_desc_lbl.pack(fill="x", pady=(2, 0))
+
+        pop_trig_btn = ctk.CTkButton(
+            trig_row,
+            text="",
+            font=self._font(12, "bold"),
+            height=32,
+            width=165,
+            corner_radius=10,
+            command=self._on_toggle_video_trigger
+        )
+        pop_trig_btn.pack(side="right", padx=(10, 0))
+        self._popup_trigger_btn_ref = pop_trig_btn
+        self._popup_trigger_desc_ref = pop_trig_desc_lbl
+        self._update_popup_trigger_ui()
+
         # Alt Aksiyon Butonları
         btn_bar = ctk.CTkFrame(win, fg_color="transparent")
         btn_bar.pack(fill="x", padx=22, pady=(0, 20))
@@ -2759,11 +2826,15 @@ class OdakAsistaniApp(ctk.CTk):
         btn_bar.grid_columnconfigure(1, weight=2)
 
         def _on_cancel():
+            self._popup_trigger_btn_ref = None
+            self._popup_trigger_desc_ref = None
             if win.winfo_exists():
                 win.destroy()
             self.break_settings_win = None
 
         def _on_save():
+            self._popup_trigger_btn_ref = None
+            self._popup_trigger_desc_ref = None
             try:
                 res = self.engine.update_break_bar_settings(
                     selected_state["goal_sec"],
@@ -2822,6 +2893,49 @@ class OdakAsistaniApp(ctk.CTk):
             corner_radius=10,
             command=_on_save
         ).grid(row=0, column=1, sticky="ew", padx=(8, 0))
+
+    def _update_popup_trigger_ui(self):
+        btn = getattr(self, "_popup_trigger_btn_ref", None)
+        lbl = getattr(self, "_popup_trigger_desc_ref", None)
+        if btn is None or not btn.winfo_exists():
+            return
+        is_on = bool(self.engine.video_detection_enabled)
+        if is_on:
+            btn.configure(
+                text="Tetikleyiciyi Kapat",
+                fg_color="#27272a",
+                hover_color="#3f3f46",
+                text_color=TEXT_PRIMARY,
+                border_color="#52525b",
+                border_width=1
+            )
+            if lbl and lbl.winfo_exists():
+                lbl.configure(text="Tetikleyici açık: Ders videoları otomatik algılanıp mola barajına sayılır.")
+        else:
+            btn.configure(
+                text="Tetikleyiciyi Aç",
+                fg_color=ACCENT_EMERALD,
+                hover_color="#059669",
+                text_color="#ffffff",
+                border_width=0
+            )
+            if lbl and lbl.winfo_exists():
+                lbl.configure(text="Tetikleyici kapalı: Videolar sayacı tetiklemez (Yalnızca Manuel Sayaç çalışır).")
+
+    def _on_toggle_video_trigger(self):
+        new_state = self.engine.toggle_video_detection()
+        self._last_bottom_sig = None
+        if new_state:
+            self.feedback_label.configure(
+                text="🎬 Video algılama tetikleyicisi AÇILDI. Ders videoları ve kaynak siteler otomatik algılanacak.",
+                text_color=ACCENT_EMERALD_TEXT
+            )
+        else:
+            self.feedback_label.configure(
+                text="⏸ Video algılama tetikleyicisi KAPATILDI. Ders videoları artık sayacı tetiklemeyecek.",
+                text_color=ACCENT_AMBER
+            )
+        self._update_popup_trigger_ui()
 
     def _open_custom_lock_chooser_popup(self):
         """Sağ üstteki sayaç rozetine veya sol üstteki hedef rozetine tıklandığında açılan Custom Lock Chooser."""
@@ -4342,6 +4456,7 @@ class OdakAsistaniApp(ctk.CTk):
 
         now = time.time()
         rem_break = max(0, int(rb_end - now)) if (rb_id and rb_end > now) else 0
+        is_trig_on = bool(self.engine.video_detection_enabled)
         bottom_sig = (
             bool(rb_id and rem_break > 0),
             rem_break,
@@ -4355,9 +4470,30 @@ class OdakAsistaniApp(ctk.CTk):
             man_active,
             man_subj,
             reward_ready,
+            is_trig_on,
         )
         if getattr(self, "_last_bottom_sig", None) != bottom_sig:
             self._last_bottom_sig = bottom_sig
+
+            if self.bottom_trigger_toggle_btn is not None and self.bottom_trigger_toggle_btn.winfo_exists():
+                if is_trig_on:
+                    self.bottom_trigger_toggle_btn.configure(
+                        text="Tetikleyiciyi Kapat",
+                        fg_color="#27272a",
+                        hover_color="#3f3f46",
+                        text_color=TEXT_PRIMARY,
+                        border_color="#52525b",
+                        border_width=1
+                    )
+                else:
+                    self.bottom_trigger_toggle_btn.configure(
+                        text="Tetikleyiciyi Aç",
+                        fg_color=ACCENT_EMERALD,
+                        hover_color="#059669",
+                        text_color="#ffffff",
+                        border_width=0
+                    )
+
             if rb_id and rem_break > 0:
                 bm, bs = divmod(rem_break, 60)
                 b_name = self.engine.items.get(rb_id, {}).get("name", rb_id)
@@ -4411,10 +4547,16 @@ class OdakAsistaniApp(ctk.CTk):
                                 text_color=ACCENT_AMBER
                             )
                 else:
-                    self.study_video_label.configure(
-                        text="YouTube / Kaynak Siteler ders videosu veya Ders Sürelerim'den manuel sayaç bekleniyor",
-                        text_color=TEXT_SECONDARY
-                    )
+                    if not is_trig_on:
+                        self.study_video_label.configure(
+                            text="⏸ Video algılama tetikleyicisi kapalı (Ders videosu algılanmıyor) — Açmak için butona basabilirsiniz",
+                            text_color=ACCENT_AMBER
+                        )
+                    else:
+                        self.study_video_label.configure(
+                            text="YouTube / Kaynak Siteler ders videosu veya Ders Sürelerim'den manuel sayaç bekleniyor",
+                            text_color=TEXT_SECONDARY
+                        )
 
         # Mola barajı dolduysa ve pop-up henüz gösterilmediyse ekrana çıkar!
         if reward_ready and not popup_already_shown:

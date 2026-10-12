@@ -211,6 +211,7 @@ class BlockerEngine:
         self.preferred_solution_subject = "otomatik"
         self.study_sources = [dict(s) for s in DEFAULT_STUDY_SOURCES]
         set_dynamic_study_sources(self.study_sources)
+        self.video_detection_enabled = True
         self.last_heartbeat_ts = time.time()
 
         # Haftada 1 Kez Kullanılabilen 30 Dakikalık Acil Durum Butonu
@@ -497,6 +498,7 @@ class BlockerEngine:
                             self.reward_available = bool(st.get("reward_available", False))
                             self.manual_study_active = bool(st.get("manual_study_active", False))
                             self.manual_study_subject_id = str(st.get("manual_study_subject_id", ""))
+                        self.video_detection_enabled = bool(st.get("video_detection_enabled", True))
 
                         rb_id = st.get("reward_break_item_id")
                         rb_rel = list(st.get("reward_break_related_ids", []))
@@ -657,6 +659,7 @@ class BlockerEngine:
                         "daily_history": self.daily_history,
                         "preferred_solution_subject": self.preferred_solution_subject,
                         "study_sources": self.study_sources,
+                        "video_detection_enabled": self.video_detection_enabled,
                     }
                 }
                 with open(STATE_FILE, "w", encoding="utf-8") as f:
@@ -1448,6 +1451,41 @@ class BlockerEngine:
             "break_minutes": new_break,
         }
 
+    def toggle_video_detection(self) -> bool:
+        """
+        Ders videoları otomatik algılama tetikleyicisini açar veya kapatır.
+        Kapatıldığında videolar artık sayacı tetiklemez; manuel çalışma bağımsız olarak çalışmaya devam edebilir.
+        """
+        with self.lock:
+            self.video_detection_enabled = not self.video_detection_enabled
+            enabled = self.video_detection_enabled
+            if not enabled and not self.manual_study_active:
+                self.current_study_video = ""
+                self.current_study_subject_id = ""
+                self.is_study_counting = False
+                self._last_audio_ts = 0.0
+                self._manual_pause_latched = False
+
+        self.save_state()
+        self._notify_change()
+        state_txt = "AÇILDI" if enabled else "KAPATILDI"
+        self.add_log(f"🎬 Video ders algılama tetikleyicisi {state_txt}.")
+        return enabled
+
+    def set_video_detection_enabled(self, enabled: bool) -> bool:
+        with self.lock:
+            self.video_detection_enabled = bool(enabled)
+            if not self.video_detection_enabled and not self.manual_study_active:
+                self.current_study_video = ""
+                self.current_study_subject_id = ""
+                self.is_study_counting = False
+                self._last_audio_ts = 0.0
+                self._manual_pause_latched = False
+
+        self.save_state()
+        self._notify_change()
+        return self.video_detection_enabled
+
     def claim_reward_break(self, item_id: str) -> bool:
         """
         Ders izleme hedefi dolduğunda kullanıcının seçtiği YALNIZCA BİR
@@ -1928,6 +1966,16 @@ class BlockerEngine:
             return
 
         # 2. Durum: Tarayıcıda YouTube veya Kaynak Siteler ders videosu takibi
+        if not self.video_detection_enabled:
+            with self.lock:
+                self._last_audio_ts = 0.0
+                self._manual_pause_latched = False
+                if not self.manual_study_active:
+                    self.current_study_video = ""
+                    self.current_study_subject_id = ""
+                    self.is_study_counting = False
+            return
+
         if self._audio_detector is None:
             self._audio_detector = AudioPeakDetector()
         if self._media_monitor is None:
