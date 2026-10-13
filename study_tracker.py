@@ -633,10 +633,17 @@ def tr_lower(text: str) -> str:
 
 
 def _matches_keyword(text_low: str, kw: str) -> bool:
-    kw_low = tr_lower(kw)
-    if kw_low in SHORT_BOUNDARY_KEYWORDS or len(kw_low) <= 3:
-        return bool(re.search(rf"\b{re.escape(kw_low)}\b", text_low))
-    return kw_low in text_low
+    kw_low = tr_lower(kw).strip()
+    if not kw_low or not text_low:
+        return False
+    # Kelime sınırını Türkçe harflere göre kesinleştir:
+    # "organik" kelimesi "inorganik" içindeyken (başında harf olduğu için) ASLA eşleşmez!
+    # Tek kelimeler için Türkçe ek uyumu: başında harf olamaz, sonunda opsiyonel çekim eki olabilir.
+    if " " in kw_low:
+        pattern = rf"(?<![a-zçğıöşü0-9]){re.escape(kw_low)}(?![a-zçğıöşü0-9])"
+    else:
+        pattern = rf"(?<![a-zçğıöşü0-9]){re.escape(kw_low)}(?:ler|lar|de|da|te|ta|den|dan|ten|tan|in|ın|un|ün|nin|nın|nun|nün|e|a|i|ı|u|ü|ye|ya|yi|yı|yu|yü|le|la|si|sı|su|sü)?(?![a-zçğıöşü0-9])"
+    return bool(re.search(pattern, text_low))
 
 
 def find_matching_study_source(title: str, url: str = "", hwnd: int = 0) -> dict:
@@ -722,14 +729,55 @@ def clean_browser_title(title: str) -> str:
     ).strip()
 
 
+PRIMARY_SUBJECT_IDENTIFIERS = {
+    "biyoloji": [
+        "biyoloji", "biyolojisi", "biyolojiye", "biosem", "dr biyoloji", "dr. biyoloji",
+        "selin hoca", "betül biyoloji", "biyotik", "senin biyolojin", "biyosem"
+    ],
+    "kimya": [
+        "kimya", "kimyası", "kimyaya", "görkem şahin", "paraksilen", "kimya adası",
+        "orbital kimya", "ferrum kimya", "meschemy kimya"
+    ],
+    "fizik": [
+        "fizik", "fiziği", "fiziğe", "vip fizik", "özcan aykın", "altuğ güneş",
+        "ertan sinan şahin", "tolga bilgin"
+    ],
+    "geometri": [
+        "geometri", "geometrisi", "geometriye", "kenan kara", "merkeze teğet"
+    ],
+    "matematik": [
+        "matematik", "matematiği", "matematiğe", "rehber matematik", "mert hoca",
+        "eyüp b", "bıyıklı matematik", "ilyas güneş", "orijinal matematik",
+        "acil matematik", "3d matematik", "şenol hoca", "tunç kurt"
+    ],
+    "turkce": [
+        "türkçe", "türkçesi", "edebiyat", "edebiyatı", "paragraf", "dil bilgisi",
+        "rüştü hoca", "kadir gümüş", "türkçenin matematiği", "deniz hoca", "emek taştan"
+    ],
+    "sosyal": [
+        "tarih", "tarihi", "coğrafya", "coğrafyası", "felsefe", "felsefesi",
+        "din kültürü", "ramazan yetgin", "coğrafyanın kodları", "yavuz tuna", "celal hoca"
+    ],
+}
+
+
 def detect_subject_id(video_title: str, preferred_solution_subject: str = "otomatik", url: str = "", hwnd: int = 0) -> str:
     """
     İzlenen videonun/sekmenin hangi derse ait olduğunu tespit eder:
-    1) Eğer Kaynak Siteler listesindeki bir kaynak siteyle eşleşiyorsa ve o kaynağa özel bir
-       kategori seçilmişse ('matematik', 'turkce', 'soru_cozum' vb.), doğrudan o kategoriyi döner!
-    2) Kaynak 'otomatik' moddaysa veya YouTube videosuysa, başlıktaki ders/konu anahtar kelimesinden algılar.
+    1) Kaynak Siteler'den gelen özel branş tanımı (345, Bilgi Sarmal vb.)
+    2) Kesin Branş / Ana Kanal İsmi Eşleşmesi (En Yüksek Öncelik):
+       Başlıkta doğrudan branş adı ("biyoloji", "kimya", "fizik", "matematik", "geometri", "türkçe", "edebiyat", "tarih", "coğrafya")
+       veya o branşın ana hocası ("biosem", "dr biyoloji", "vip fizik", "kenan kara", "rehber matematik" vb.)
+       geçiyorsa doğrudan o branşa yönlendirilir.
+    3) Konu Başlıkları ve Anahtar Kelime Puanlaması (Scoring):
+       Başlıkta branş adı açıkça yazmıyorsa (örn. sadece "İnorganik Bileşikler" veya "Limit ve Süreklilik"),
+       eşleşen en uzun / en spesifik anahtar kelimelerin ağırlıklı puanı hesaplanır ve en yüksek puana sahip branş seçilir.
     """
     title_low = tr_lower(video_title or "")
+    if not title_low:
+        return "soru_cozum"
+
+    # 1. Kaynak Siteler listesindeki kaynağın kendi branş ayarı
     matched_source = find_matching_study_source(video_title, url=url, hwnd=hwnd)
     if matched_source:
         src_subj = matched_source.get("subject_id", "soru_cozum")
@@ -738,12 +786,30 @@ def detect_subject_id(video_title: str, preferred_solution_subject: str = "otoma
                 if subj["id"] == src_subj:
                     return subj["id"]
 
+    # 2. Kesin Branş / Hoca Eşleşmesi (Doğrudan branş adı yazıyorsa ASLA yanılma!)
+    for sid, p_kws in PRIMARY_SUBJECT_IDENTIFIERS.items():
+        for kw in p_kws:
+            if _matches_keyword(title_low, kw):
+                return sid
+
+    # 3. Konu Anahtar Kelimeleri Ağırlıklı Puanlama (En spesifik branş kazanır)
+    scores = {}
     for subj in SUBJECT_DEFINITIONS:
-        if subj["id"] == "soru_cozum":
+        sid = subj["id"]
+        if sid == "soru_cozum":
             continue
+        subj_score = 0
         for kw in subj["keywords"]:
             if _matches_keyword(title_low, kw):
-                return subj["id"]
+                kw_len = len(kw)
+                weight = kw_len + (10 if " " in kw else 0)
+                subj_score += weight
+        if subj_score > 0:
+            scores[sid] = subj_score
+
+    if scores:
+        best_sid = max(scores.items(), key=lambda x: x[1])[0]
+        return best_sid
 
     if preferred_solution_subject and preferred_solution_subject != "otomatik":
         for subj in SUBJECT_DEFINITIONS:
