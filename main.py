@@ -1241,21 +1241,23 @@ class OdakAsistaniApp(ctk.CTk):
         )
         self._bento_q_frame.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
 
-        bento_q_top_row = ctk.CTkFrame(self._bento_q_frame, fg_color="transparent")
-        bento_q_top_row.pack(fill="x", padx=18, pady=(14, 2))
-
+        # Bento 2 Üst Satır: Başlık tek başına tam genişlikte yer alır (Asla sıkışmaz veya butonla çakışmaz)
         self._bento_q_title = ctk.CTkLabel(
-            bento_q_top_row,
+            self._bento_q_frame,
             text="ÇÖZÜLEN SORU (BUGÜN)  •  RÜTBE: BAŞLANGIÇ",
             font=self._font(12, "bold"),
             text_color=TEXT_SECONDARY,
             anchor="w"
         )
-        self._bento_q_title.pack(side="left")
+        self._bento_q_title.pack(fill="x", padx=18, pady=(14, 2))
 
-        # Genel Rütbe Sıralamasını Göster / Kapat Butonu
+        # Bento 2 Orta Satır: Sol tarafta dev sayaç, Sağ tarafta sabit genişlikli Rütbe Sıralaması Butonu
+        bento_q_mid_row = ctk.CTkFrame(self._bento_q_frame, fg_color="transparent")
+        bento_q_mid_row.pack(fill="x", padx=18, pady=(0, 2))
+
+        # Sağdaki buton önce pack edilir (side="right") böylece pencere daralsa bile ASLA küçülmez veya metni kesilmez!
         self._global_rank_ladder_btn = ctk.CTkButton(
-            bento_q_top_row,
+            bento_q_mid_row,
             text="Rütbe Sıralamasını Göster ▾",
             font=self._font(11, "bold"),
             fg_color=BG_ELEVATED,
@@ -1263,21 +1265,21 @@ class OdakAsistaniApp(ctk.CTk):
             text_color="#e4e4e7",
             border_color=BORDER_DEFAULT,
             border_width=1,
-            height=26,
-            width=185,
+            height=28,
+            width=180,
             corner_radius=8,
             command=self._on_toggle_global_rank_ladder
         )
-        self._global_rank_ladder_btn.pack(side="right")
+        self._global_rank_ladder_btn.pack(side="right", padx=(8, 0))
 
         self._total_questions_lbl = ctk.CTkLabel(
-            self._bento_q_frame,
+            bento_q_mid_row,
             text="0 SORU",
             font=self._font(26, "bold"),
             text_color=ACCENT_EMERALD_TEXT,
             anchor="w"
         )
-        self._total_questions_lbl.pack(fill="x", padx=18, pady=(0, 2))
+        self._total_questions_lbl.pack(side="left")
 
         self._bento_q_sub = ctk.CTkLabel(
             self._bento_q_frame,

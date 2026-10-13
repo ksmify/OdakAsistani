@@ -566,13 +566,15 @@ def build_custom_study_source(raw_input: str, subject_id: str = "soru_cozum") ->
     }
 
 
-# Kitap satış / alışveriş / ders dışı siteler (Başlığında "TYT Matematik" yazsa bile ASLA video ders değildir!)
+# Kitap satış / alışveriş / yapay zeka / arama motoru siteleri (Başlığında "TYT Matematik" veya yayınevi adı geçse bile ASLA video ders değildir!)
 NON_STUDY_SITE_EXCLUSIONS = [
     "nadir kitap", "nadirkitap", "kitapyurdu", "bkmkitap", "kitapsepeti",
     "kitapsec", "kitap seç", "dr.com.tr", "idefix", "pandora", "kidega",
     "trendyol", "hepsiburada", "amazon", "n11", "çiçeksepeti", "ciceksepeti",
     "sahibinden", "letgo", "dolap", "gardrops", "akakçe", "akakce", "cimri",
-    "google arama", "- google'da ara", "google search", "yandex", "bing"
+    "google arama", "- google'da ara", "google search", "google.com/search",
+    "gemini", "gemini.google", "chatgpt", "chat.openai", "openai",
+    "claude.ai", "perplexity", "copilot", "yandex", "bing"
 ]
 
 # Müzik / Rahatlatıcı Ses / Lo-Fi / Eğlence videoları (Başlığında "ders", "odak", "enerji", "dalgalar" geçse bile ders DEĞİLDİR!)
@@ -1379,6 +1381,13 @@ while ($true) {
                 # Başka bir sekmeden ses geliyor ama ders sekmesi sessiz -> ders duraklatılmış!
                 return False, clean_browser_title(window_title), "main_video_paused"
 
+            if not playing_study_tabs:
+                # Tarayıcı sekmeleri aktif taranıyor ve hiçbir ders sekmesinde ses ikonu (audio=True) yok!
+                # (1. Katmanda da SMTC üzerinden çalan bir ders oturumu doğrulanmadı)
+                # Bu durumda Opera GX klavye yazma sesleri, arayüz efektleri veya sistem bildirimleri
+                # ASLA ders videosunun oynatıldığı anlamına gelemez -> video duraklatılmıştır!
+                return False, clean_browser_title(window_title), "main_video_paused"
+
         # 3. KATMAN: Sistem Sesi (Core Audio Peak) Kontrolü
         if getattr(self, "_audio_detector", None) is None:
             self._audio_detector = AudioPeakDetector()
@@ -1459,11 +1468,13 @@ def find_active_study_video(return_hwnd: bool = False):
                 if sel_title and is_study_video_title(sel_title, require_platform=True, hwnd=hwnd):
                     candidate_title = sel_title
                 else:
-                    # 3. Açık sekmeler arasında ses veren veya seçili ders sekmesi
+                    # 3. Açık sekmeler arasında GERÇEKTEN ses veren (audio=True) veya seçili ders sekmesi
                     tabs_for_hwnd = _ACTIVE_BROWSER_ALL_TABS.get(h_int, [])
                     for t in tabs_for_hwnd:
                         t_name = (t.get("title") or "").strip()
-                        if t_name and is_study_video_title(t_name, require_platform=True, hwnd=hwnd):
+                        t_audio = bool(t.get("audio", False))
+                        t_sel = bool(t.get("selected", False))
+                        if t_name and (t_audio or t_sel) and is_study_video_title(t_name, require_platform=True, hwnd=hwnd):
                             candidate_title = t_name
                             break
 
