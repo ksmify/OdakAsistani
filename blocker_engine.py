@@ -1236,6 +1236,20 @@ class BlockerEngine:
             title_lower
         ).strip()
 
+        # Kesin İstisna (Whitelist): ChatGPT, Gemini, Claude, Copilot gibi eğitim/araştırma yapay zekaları ASLA engellenmez!
+        EDUCATIONAL_AI_EXEMPTIONS = (
+            "chatgpt.com", "openai.com", "chat.openai.com",
+            "gemini.google.com", "claude.ai", "copilot.microsoft.com",
+            "perplexity.ai"
+        )
+        url_host = url_clean.split("/")[0].split(":")[0].strip() if url_clean else ""
+        if url_host:
+            if url_host in EDUCATIONAL_AI_EXEMPTIONS or any(url_host.endswith("." + e) for e in EDUCATIONAL_AI_EXEMPTIONS):
+                return None
+
+        if re.search(r"\b(chatgpt|openai|claude|gemini)\b", clean_title) or re.search(r"\b(chatgpt|openai|claude|gemini)\b", title_lower):
+            return None
+
         # 1. Öncelik: Belirli sayfa / alt yol (URL) kuralları
         for item_name, url_rules, title_all_kw in specific_url_rules:
             # A) URL kontrolü (Adres çubuğundan gelen doğrudan URL eşleşmesi)
@@ -1261,31 +1275,36 @@ class BlockerEngine:
         # 2. Standart site kuralları (Tüm alan adı veya site engelliyse)
         for item_name, keywords, domains in blocked_tab_rules:
             # A) Adres çubuğu (URL) eşleşmesi — kullanıcı siteye girdiği an TAK diye kapat
-            if url_clean:
+            if url_clean and url_host:
                 for d in domains:
                     d_clean = d.lower().replace("www.", "").strip()
-                    if d_clean and (d_clean in url_clean or url_clean.startswith(d_clean)):
+                    # Alan adı eşleşmesi tam host veya alt alan adı olmalıdır!
+                    # "t.co" (Twitter) asla "chatgpt.com" alt kümesi gibi algılanıp kapatmamalıdır!
+                    if d_clean and (url_host == d_clean or url_host.endswith("." + d_clean)):
                         return item_name
                 for kw in keywords:
                     if len(kw) <= 3:
                         if re.search(rf"\b{re.escape(kw)}\b", url_clean):
                             return item_name
                     else:
-                        if kw in url_clean:
+                        if re.search(rf"(?<![a-z0-9]){re.escape(kw)}(?![a-z0-9])", url_clean):
                             return item_name
 
             # B) Başlık eşleşmesi (DNS hatası, 'siteye ulaşılamıyor' veya normal sayfa başlığı)
             for d in domains:
                 d_clean = d.lower().replace("www.", "").strip()
-                if d_clean and (d_clean in title_lower or d_clean in clean_title):
-                    return item_name
+                if d_clean:
+                    pattern = rf"(?<![a-z0-9]){re.escape(d_clean)}(?![a-z0-9])"
+                    if re.search(pattern, clean_title) or re.search(pattern, title_lower):
+                        return item_name
 
             for kw in keywords:
                 if len(kw) <= 3:
                     if re.search(rf"\b{re.escape(kw)}\b", clean_title) or re.search(rf"\b{re.escape(kw)}\b", title_lower):
                         return item_name
                 else:
-                    if kw in clean_title or kw in title_lower:
+                    pattern = rf"(?<![a-zçğıöşü0-9]){re.escape(kw)}(?![a-zçğıöşü0-9])"
+                    if re.search(pattern, clean_title) or re.search(pattern, title_lower):
                         return item_name
         return None
 
