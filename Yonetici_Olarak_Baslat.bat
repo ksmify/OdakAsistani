@@ -48,4 +48,8 @@ if not %errorlevel%==0 (
     "%PY_EXE%" -m pip install -r "%~dp0requirements.txt"
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process '%PYW_EXE%' -ArgumentList '\"%~dp0main.py\"' -Verb RunAs"
+if exist "%~dp0OdakAsistani.exe" (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process '%~dp0OdakAsistani.exe' -WorkingDirectory '%~dp0' -Verb RunAs"
+) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process '%PYW_EXE%' -ArgumentList '\"%~dp0main.py\"' -WorkingDirectory '%~dp0' -Verb RunAs"
+)

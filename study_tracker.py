@@ -40,14 +40,42 @@ STUDY_GOAL_OPTIONS = [
 ALLOWED_STUDY_GOAL_SECONDS = {opt["seconds"] for opt in STUDY_GOAL_OPTIONS}
 
 # Mola Barajı İçin İzin Verilen Mola Süresi Seçenekleri:
-# 5 DK / 10 DK / 20 DK / 30 DK
+# 5 DK / 10 DK / 15 DK / 20 DK / 30 DK
 REWARD_BREAK_OPTIONS = [
     {"label": "5 DK", "minutes": 5, "seconds": 5 * 60},
     {"label": "10 DK", "minutes": 10, "seconds": 10 * 60},
+    {"label": "15 DK", "minutes": 15, "seconds": 15 * 60},
     {"label": "20 DK", "minutes": 20, "seconds": 20 * 60},
     {"label": "30 DK", "minutes": 30, "seconds": 30 * 60},
 ]
 ALLOWED_REWARD_BREAK_MINUTES = {opt["minutes"] for opt in REWARD_BREAK_OPTIONS}
+
+# Dengeli Mola Barajı Kuralı: Her hedef çalışma süresi için izin verilen maksimum ödül molası (dakika)
+# 40 dk -> max 10 dk | 45 dk -> max 10 dk | 1 saat -> max 15 dk | 2 saat -> max 20 dk | 3 saat -> max 30 dk
+MAX_BREAK_MINUTES_BY_GOAL = {
+    40 * 60: 10,
+    45 * 60: 10,
+    60 * 60: 15,
+    120 * 60: 20,
+    180 * 60: 30,
+}
+
+
+def get_max_break_for_goal(goal_seconds: int) -> int:
+    return int(MAX_BREAK_MINUTES_BY_GOAL.get(int(goal_seconds), 15))
+
+
+def clamp_break_minutes_for_goal(goal_seconds: int, break_minutes: int) -> int:
+    max_b = get_max_break_for_goal(goal_seconds)
+    valid = sorted(m for m in ALLOWED_REWARD_BREAK_MINUTES if m <= max_b)
+    if not valid:
+        return 5
+    b = int(break_minutes)
+    if b in valid:
+        return b
+    lower_or_eq = [m for m in valid if m <= b]
+    return lower_or_eq[-1] if lower_or_eq else valid[0]
+
 
 
 def format_goal_short_tr(goal_seconds: int) -> str:

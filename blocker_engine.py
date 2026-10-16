@@ -38,6 +38,7 @@ from study_tracker import (
     build_custom_study_source,
     get_source_category_label,
     find_matching_study_source,
+    clamp_break_minutes_for_goal,
 )
 from self_defense import SelfDefenseManager
 
@@ -428,7 +429,7 @@ class BlockerEngine:
                         try:
                             saved_break_min = int(st.get("reward_break_minutes", REWARD_BREAK_MINUTES))
                             if saved_break_min in ALLOWED_REWARD_BREAK_MINUTES:
-                                self.reward_break_minutes = saved_break_min
+                                self.reward_break_minutes = clamp_break_minutes_for_goal(self.study_goal_seconds, saved_break_min)
                         except Exception:
                             pass
 
@@ -1460,6 +1461,7 @@ class BlockerEngine:
             new_goal = STUDY_GOAL_SECONDS
         if new_break not in ALLOWED_REWARD_BREAK_MINUTES:
             new_break = REWARD_BREAK_MINUTES
+        new_break = clamp_break_minutes_for_goal(new_goal, new_break)
 
         with self.lock:
             old_goal = int(max(1, self.study_goal_seconds))
@@ -2373,6 +2375,7 @@ class BlockerEngine:
 
         ignore_exes = set(SAFE_SYSTEM_PROCESSES) | {
             "explorer.exe", "python.exe", "pythonw.exe", "antigravity.exe",
+            "odakasistani.exe", "odakasistanihost.exe", "odak asistani.exe",
             "nvcontainer.exe", "nvdisplay.container.exe", "nvsphelper64.exe",
             "nvidia overlay.exe", "securityhealthsystray.exe", "jucheck.exe",
             "jusched.exe", "textinputhost.exe", "applicationframehost.exe",
