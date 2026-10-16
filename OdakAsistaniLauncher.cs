@@ -52,8 +52,7 @@ namespace OdakAsistani
                     FileName = pythonw,
                     Arguments = argStr,
                     WorkingDirectory = baseDir,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
+                    UseShellExecute = true
                 };
 
                 using (Process proc = Process.Start(psi))

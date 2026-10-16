@@ -325,12 +325,127 @@ def create_tray_icon_image() -> Image.Image:
     return img
 
 
+def bring_window_to_topmost(window=None, restore_tray_cb=None):
+    """
+    Restores Odak Asistanı if minimized or hidden in tray,
+    bypasses Windows foreground locking, brings it to foreground
+    and sets HWND_TOPMOST so it overlays fullscreen videos/apps,
+    flashes the taskbar, and plays an alert sound.
+    """
+    if restore_tray_cb:
+        try:
+            restore_tray_cb()
+        except Exception:
+            pass
+
+    if window:
+        try:
+            window.show()
+            window.restore()
+            window.on_top = True
+        except Exception:
+            pass
+
+    try:
+        hwnd = ctypes.windll.user32.FindWindowW(None, "Odak Asistanı")
+        if hwnd:
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+
+            user32.SetWindowPos.argtypes = [
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_uint,
+            ]
+
+            SW_RESTORE = 9
+            SW_SHOW = 5
+            HWND_TOPMOST = ctypes.c_void_p(-1)
+            SWP_NOSIZE = 0x0001
+            SWP_NOMOVE = 0x0002
+            SWP_SHOWWINDOW = 0x0040
+            FLAGS = SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
+
+            if user32.IsIconic(hwnd):
+                user32.ShowWindow(hwnd, SW_RESTORE)
+            else:
+                user32.ShowWindow(hwnd, SW_SHOW)
+
+            # Bypass LockSetForegroundWindow
+            fg_hwnd = user32.GetForegroundWindow()
+            fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None)
+            cur_tid = kernel32.GetCurrentThreadId()
+
+            attached = False
+            if fg_tid != cur_tid and fg_tid != 0:
+                attached = bool(user32.AttachThreadInput(cur_tid, fg_tid, True))
+
+            try:
+                user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, FLAGS)
+                user32.SetForegroundWindow(hwnd)
+                user32.BringWindowToTop(hwnd)
+            finally:
+                if attached:
+                    user32.AttachThreadInput(cur_tid, fg_tid, False)
+
+            if user32.GetForegroundWindow() != hwnd:
+                VK_MENU = 0x12
+                KEYEVENTF_KEYUP = 0x0002
+                user32.keybd_event(VK_MENU, 0, 0, 0)
+                user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, FLAGS)
+                user32.SetForegroundWindow(hwnd)
+                user32.BringWindowToTop(hwnd)
+                user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
+
+            user32.FlashWindow(hwnd, True)
+    except Exception:
+        pass
+
+
+def release_window_topmost(window=None):
+    """
+    Releases the HWND_TOPMOST flag after the user picks a reward or dismisses the break modal,
+    returning Odak Asistanı to normal desktop z-ordering.
+    """
+    if window:
+        try:
+            window.on_top = False
+        except Exception:
+            pass
+
+    try:
+        hwnd = ctypes.windll.user32.FindWindowW(None, "Odak Asistanı")
+        if hwnd:
+            user32 = ctypes.windll.user32
+            user32.SetWindowPos.argtypes = [
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_uint,
+            ]
+            HWND_NOTOPMOST = ctypes.c_void_p(-2)
+            SWP_NOSIZE = 0x0001
+            SWP_NOMOVE = 0x0002
+            SWP_SHOWWINDOW = 0x0040
+            user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+    except Exception:
+        pass
+
+
 class OdakBridgeApi:
     def __init__(self, engine: BlockerEngine, parser: CommandParser):
         self._engine = engine
         self._parser = parser
         self._icon_b64_cache = {}
         self._window = None
+        self._restore_tray_cb = None
 
     def _get_icon_data_uri(self, png_path: str) -> str:
         if not png_path or not os.path.exists(png_path):
@@ -353,12 +468,9 @@ class OdakBridgeApi:
                 os.remove(SHOW_SIGNAL_FILE)
             except Exception:
                 pass
-            if self._window:
-                try:
-                    self._window.show()
-                    self._window.restore()
-                except Exception:
-                    pass
+            bring_window_to_topmost(self._window, self._restore_tray_cb)
+            if not self._engine.reward_available:
+                release_window_topmost(self._window)
 
         cd = self._engine.get_tyt_countdown()
         em = self._engine.get_emergency_status()
@@ -448,8 +560,9 @@ class OdakBridgeApi:
             with self._engine.lock:
                 self._engine.reward_popup_shown = True
             auto_open_reward = True
+            bring_window_to_topmost(self._window, self._restore_tray_cb)
             try:
-                winsound.MessageBeep(winsound.MB_ICONASTERISK)
+                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
             except Exception:
                 pass
 
@@ -468,6 +581,7 @@ class OdakBridgeApi:
                 "video_trigger_on": is_trig_on,
             },
             "AutoOpenRewardPopup": auto_open_reward,
+            "reward_ready": bool(reward_ready),
             "items": None,
             "stats": None,
             "sources": None,
@@ -864,35 +978,24 @@ class OdakBridgeApi:
         }
 
     def claim_reward_item(self, item_id: str) -> dict:
+        release_window_topmost(self._window)
         item_name = self._engine.items.get(item_id, {}).get("name", item_id)
         break_min = int(getattr(self._engine, "reward_break_minutes", 10))
         self._engine.claim_reward_break(item_id)
         return {"ok": True, "message": f"{break_min} dakikalık ödül molası başladı: '{item_name}' şu an açık."}
 
     def dismiss_reward(self) -> dict:
+        release_window_topmost(self._window)
         self._engine.dismiss_reward_without_break()
         return {"ok": True}
 
 
-def apply_dark_titlebar_and_icon(win_obj=None):
+def apply_dark_titlebar_and_icon():
     """Finds the Odak Asistanı native window handle and applies Windows 11 Obsidian dark titlebar + icon."""
     icon_path = os.path.join(BASE_DIR, "odak_icon.ico")
-    for _ in range(25):
+    for _ in range(30):
         try:
-            hwnd = 0
-            if win_obj is not None and getattr(win_obj, "native", None) is not None:
-                try:
-                    if os.path.exists(icon_path):
-                        import System.Drawing  # type: ignore
-                        win_obj.native.Icon = System.Drawing.Icon(icon_path)
-                except Exception:
-                    pass
-                try:
-                    hwnd = int(win_obj.native.Handle.ToInt64())
-                except Exception:
-                    pass
-            if not hwnd:
-                hwnd = ctypes.windll.user32.FindWindowW(None, "Odak Asistanı")
+            hwnd = ctypes.windll.user32.FindWindowW(None, "Odak Asistanı")
             if hwnd:
                 dwmapi = ctypes.windll.dwmapi
                 dark_mode = ctypes.c_int(1)
@@ -927,7 +1030,7 @@ def apply_dark_titlebar_and_icon(win_obj=None):
                 break
         except Exception:
             pass
-        time.sleep(0.25)
+        time.sleep(0.3)
 
 
 _MUTEX_HANDLE = None
@@ -984,11 +1087,16 @@ def main():
         try:
             win.show()
             win.restore()
-            threading.Thread(target=apply_dark_titlebar_and_icon, args=(win,), daemon=True).start()
         except Exception:
             pass
+        bring_window_to_topmost(win)
+        if not engine.reward_available:
+            release_window_topmost(win)
+
+    api._restore_tray_cb = restore_from_tray
 
     def on_closing():
+        release_window_topmost(win)
         # Minimize to system tray instead of killing protection
         try:
             win.hide()
@@ -1004,12 +1112,8 @@ def main():
         except Exception:
             return False
 
-    def on_shown():
-        threading.Thread(target=apply_dark_titlebar_and_icon, args=(win,), daemon=True).start()
-
     win.events.closing += on_closing
-    win.events.shown += on_shown
-    threading.Thread(target=apply_dark_titlebar_and_icon, args=(win,), daemon=True).start()
+    threading.Thread(target=apply_dark_titlebar_and_icon, daemon=True).start()
     webview.start(debug=False)
 
 

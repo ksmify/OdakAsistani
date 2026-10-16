@@ -954,6 +954,7 @@
         <span id="studyVideoLabel" style="color:var(--text-secondary); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;">YouTube / Kaynak Siteler ders videosu veya Ders Sürelerim'den manuel sayaç bekleniyor</span>
       </div>
       <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+        <button id="claimRewardDockBtn" class="btn btn-emerald" style="display:none; height:28px; font-weight:700;" onclick="openRewardModal()">🎁 Molanı Seç</button>
         <button id="manualStopDockBtn" class="btn" style="display:none; height:28px; background:#f59e0b; color:#09090b; border:none; font-weight:700;" onclick="stopManualFromDock()">Çalışmayı Bitir & Soru Gir</button>
         <button id="triggerToggleBtn" class="btn" style="height:28px; font-size:11.5px;" onclick="toggleVideoTrigger()">Tetikleyiciyi Kapat</button>
         <button class="btn" style="width:32px; height:32px; padding:0;" onclick="openBreakSettingsModal()" title="Mola Barajı Ayarları">
@@ -1241,6 +1242,11 @@ function updateHeaderAndDock(d) {
 
   const manBtn = document.getElementById("manualStopDockBtn");
   manBtn.style.display = d.dock.manual_active ? "inline-flex" : "none";
+
+  const rewBtn = document.getElementById("claimRewardDockBtn");
+  if (rewBtn) {
+    rewBtn.style.display = d.reward_ready ? "inline-flex" : "none";
+  }
 
   const trigBtn = document.getElementById("triggerToggleBtn");
   if (d.dock.video_trigger_on) {
