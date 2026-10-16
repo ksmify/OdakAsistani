@@ -1846,6 +1846,23 @@ function buildStructuralSignature(d) {
     sourcesSig = (d.sources.list || []).map(s => `${s.id}:${s.subject_id}`).join(",");
   }
 
+  if (currentTab === "Ayarlar") {
+    const st = d.settings || {};
+    return JSON.stringify({
+      tab: "Ayarlar",
+      th: st.theme,
+      fb_en: st.floating_bar_enabled,
+      fb_w: st.floating_bar_width,
+      fb_h: st.floating_bar_height,
+      fb_op: st.floating_bar_opacity,
+      coach: st.coach_persona,
+      tm: st.block_taskmgr,
+      pb: st.enable_process_blocker,
+      hb: st.enable_hosts_blocker,
+      tc: st.enable_tab_closer
+    });
+  }
+
   return JSON.stringify({
     tab: currentTab,
     period: currentPeriod,
@@ -1917,7 +1934,11 @@ function renderStageIfNeeded(d, force) {
 
   lastStageSig = sig;
   const vp = document.getElementById("stageViewport");
-  if (currentTab === "Ders Sürelerim") {
+  if (currentTab === "Ayarlar") {
+    if (d.settings_data) lastSettingsData = d.settings_data;
+    renderSettingsView(vp, d.settings_data || lastSettingsData);
+    return;
+  } else if (currentTab === "Ders Sürelerim") {
     renderStatsView(vp, d.stats);
   } else if (currentTab === "Kaynak Siteler") {
     renderSourcesView(vp, d.sources);
@@ -1930,6 +1951,14 @@ function renderStageIfNeeded(d, force) {
 
 function switchTab(tabName) {
   currentTab = tabName;
+  const shell = document.querySelector(".app-shell");
+  if (shell) {
+    if (tabName === "Ayarlar") {
+      shell.classList.add("in-settings-view");
+    } else {
+      shell.classList.remove("in-settings-view");
+    }
+  }
   document.querySelectorAll("#navTabs .tab-btn").forEach(btn => {
     btn.classList.toggle("active", btn.getAttribute("data-tab") === tabName);
   });
