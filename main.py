@@ -33,7 +33,7 @@ except Exception:
 
 import tkinter as tk
 import customtkinter as ctk
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageTk
 import pystray
 
 from blocker_engine import BlockerEngine, is_admin
@@ -797,6 +797,8 @@ class OdakAsistaniApp(ctk.CTk):
 
         self._lock_icon_closed = create_lock_icon_ctk(True, (228, 228, 231))
         self._lock_icon_open = create_lock_icon_ctk(False, (52, 211, 153))
+        self._lock_closed_img = self._lock_icon_closed
+        self._lock_open_img = self._lock_icon_open
         self._guide_icon = create_guide_icon_ctk()
 
         # --------------------------------------------------------------
@@ -5437,9 +5439,9 @@ class OdakAsistaniApp(ctk.CTk):
         new_q = val.strip()
         if new_q != self.search_query:
             self.search_query = new_q
-            if self.current_tab == "Kaynak Siteler":
+            if self.current_tab in ("🌐 Kaynak Siteler", "Kaynak Siteler"):
                 self._sync_sources_view()
-            elif self.current_tab != "Ders Sürelerim":
+            elif self.current_tab not in ("📊 Ders Sürelerim", "Ders Sürelerim"):
                 self._refresh_items_view(force_rebuild=False)
 
     def _execute_command(self):
@@ -5535,7 +5537,7 @@ class OdakAsistaniApp(ctk.CTk):
             self._ui_dirty = False
             self._switch_active_view(force_rebuild=False)
             self._refresh_status()
-        elif self.current_tab == "Ders Sürelerim":
+        elif self.current_tab in ("📊 Ders Sürelerim", "Ders Sürelerim"):
             # Ders Sürelerim sekmesi açıksa canlı sayaçları sıfır titremeyle güncelle
             self._sync_subject_stats_view(focus_stopped_entry=False)
 
