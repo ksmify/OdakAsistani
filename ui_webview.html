@@ -28,6 +28,50 @@
     --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
+  /* Themes */
+  body[data-theme="oled"] {
+    --bg-canvas: #000000;
+    --bg-surface: #090909;
+    --bg-card: #0e0e0e;
+    --bg-card-hover: #151515;
+    --bg-elevated: #1a1a1a;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-default: rgba(255, 255, 255, 0.15);
+  }
+  body[data-theme="cyber_emerald"] {
+    --bg-canvas: #04120c;
+    --bg-surface: #071e13;
+    --bg-card: #0a291a;
+    --bg-card-hover: #0f3925;
+    --bg-elevated: #154d33;
+    --accent-emerald: #059669;
+    --accent-emerald-text: #34d399;
+    --border-subtle: rgba(16, 185, 129, 0.18);
+    --border-default: rgba(16, 185, 129, 0.32);
+  }
+  body[data-theme="midnight_blue"] {
+    --bg-canvas: #060b14;
+    --bg-surface: #0b1526;
+    --bg-card: #102038;
+    --bg-card-hover: #172c4c;
+    --bg-elevated: #1c355c;
+    --accent-emerald: #0284c7;
+    --accent-emerald-text: #38bdf8;
+    --border-subtle: rgba(56, 189, 248, 0.18);
+    --border-default: rgba(56, 189, 248, 0.32);
+  }
+  body[data-theme="amethyst"] {
+    --bg-canvas: #0c0814;
+    --bg-surface: #140e22;
+    --bg-card: #1f1635;
+    --bg-card-hover: #2b1f48;
+    --bg-elevated: #36285a;
+    --accent-emerald: #9333ea;
+    --accent-emerald-text: #c084fc;
+    --border-subtle: rgba(168, 85, 247, 0.18);
+    --border-default: rgba(168, 85, 247, 0.32);
+  }
+
   * {
     box-sizing: border-box;
     margin: 0;
@@ -970,6 +1014,279 @@
     display: block;
     overflow: visible;
   }
+
+  /* Full-Page Settings View */
+  .settings-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    gap: 12px;
+    overflow: hidden;
+    animation: fadeIn 0.25s var(--ease-spring);
+  }
+  .settings-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 2px 0 8px 0;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .settings-search-wrap {
+    flex: 1;
+    max-width: 440px;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .settings-search-wrap input {
+    width: 100%;
+    height: 36px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: 10px;
+    padding: 0 14px 0 36px;
+    color: var(--text-primary);
+    font-size: 12px;
+    outline: none;
+    transition: all 0.2s ease;
+  }
+  .settings-search-wrap input:focus {
+    border-color: var(--accent-emerald);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+  }
+  .settings-search-wrap svg {
+    position: absolute;
+    left: 12px;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+  .settings-body {
+    display: flex;
+    gap: 16px;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .settings-sidebar {
+    width: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .settings-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.18s var(--ease-spring);
+  }
+  .settings-nav-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-primary);
+  }
+  .settings-nav-item.active {
+    background: var(--bg-card);
+    border-color: var(--border-default);
+    color: var(--accent-emerald-text);
+  }
+  .settings-content-pane {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .settings-section-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .settings-section-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #f8fafc;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+  }
+  .setting-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  .setting-row-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+  }
+  .setting-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .setting-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+  /* Toggle Switch */
+  .switch-toggle {
+    position: relative;
+    display: inline-block;
+    width: 42px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+  .switch-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .switch-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background-color: rgba(255, 255, 255, 0.12);
+    transition: .25s var(--ease-spring);
+    border-radius: 22px;
+  }
+  .switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .25s var(--ease-spring);
+    border-radius: 50%;
+  }
+  .switch-toggle input:checked + .switch-slider {
+    background-color: var(--accent-emerald);
+  }
+  .switch-toggle input:checked + .switch-slider:before {
+    transform: translateX(20px);
+  }
+  /* Theme Card Pickers */
+  .theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+  }
+  .theme-card-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1.5px solid var(--border-subtle);
+    cursor: pointer;
+    transition: all 0.2s var(--ease-spring);
+  }
+  .theme-card-btn:hover {
+    border-color: var(--border-default);
+    transform: translateY(-2px);
+  }
+  .theme-card-btn.active {
+    border-color: var(--accent-emerald);
+    background: rgba(16, 185, 129, 0.08);
+    box-shadow: 0 0 16px rgba(16, 185, 129, 0.15);
+  }
+  .theme-swatch {
+    width: 38px;
+    height: 22px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+  /* Floating Bar Preview Box */
+  .floating-bar-preview-box {
+    background: #090b10;
+    border: 1px dashed var(--border-default);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 120px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Full-Page Settings View Mode */
+  .app-shell.in-settings-view .command-box,
+  .app-shell.in-settings-view .bottom-dock,
+  .app-shell.in-settings-view .nav-toolbar {
+    display: none !important;
+  }
+  .app-shell.in-settings-view .stage-container {
+    height: calc(100vh - 65px) !important;
+    padding: 6px 18px 12px 18px !important;
+  }
+  .app-shell.in-settings-view #stageViewport {
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+  .fb-preview-shape {
+    border-radius: 9px;
+    background: #09140e;
+    border: 1.5px solid #10b981;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    transition: all 0.2s ease;
+  }
+  .fb-preview-fill-h {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 65%;
+    background: linear-gradient(90deg, #059669, #10b981);
+  }
+  .fb-preview-fill-v {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 65%;
+    background: linear-gradient(180deg, #059669, #10b981);
+  }
+
 </style>
 </head>
 <body>
@@ -1018,6 +1335,14 @@
 
       <button id="emergencyBtn" class="btn btn-danger-subtle" onclick="onEmergencyClicked()">
         Acil Durum (30 Dk)
+      </button>
+
+      <button id="settingsBtn" class="btn" onclick="onHeaderSettingsBtnClick()" style="border-color:rgba(255,255,255,0.14); gap:6px; font-weight:600;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>Ayarlar</span>
       </button>
     </div>
   </header>
@@ -1071,7 +1396,7 @@
         <span id="studyVideoLabel" style="color:var(--text-secondary); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;">YouTube / Kaynak Siteler ders videosu veya Ders Sürelerim'den manuel sayaç bekleniyor</span>
       </div>
       <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-        <button id="claimRewardDockBtn" class="btn btn-emerald" style="display:none; height:28px; font-weight:700;" onclick="openRewardModal()">🎁 Molanı Seç</button>
+        <button id="claimRewardDockBtn" class="btn btn-emerald" style="display:none; height:28px; font-weight:700;" onclick="openRewardModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Molanı Seç</button>
         <button id="manualStopDockBtn" class="btn" style="display:none; height:28px; background:#f59e0b; color:#09090b; border:none; font-weight:700;" onclick="stopManualFromDock()">Çalışmayı Bitir & Soru Gir</button>
         <button id="triggerToggleBtn" class="btn" style="height:28px; font-size:11.5px;" onclick="toggleVideoTrigger()">Tetikleyiciyi Kapat</button>
         <button class="btn" style="width:32px; height:32px; padding:0;" onclick="openBreakSettingsModal()" title="Mola Barajı Ayarları">
@@ -1205,13 +1530,13 @@
         <button type="button" class="btn" style="width:42px; height:44px; font-weight:700;" onclick="adjustDailyGoalInput(10)">+10</button>
       </div>
       <div style="display:flex; justify-content:center; gap:6px;">
-        <button type="button" class="btn" style="font-size:11px; padding:4px 10px; border-color:rgba(16,185,129,0.3); color:#34d399;" onclick="applyRecommendedGoal()">💡 Tavsiye Edilen Sayıyı Kullan</button>
+        <button type="button" class="btn" style="font-size:11px; padding:4px 10px; border-color:rgba(16,185,129,0.3); color:#34d399;" onclick="applyRecommendedGoal()">Tavsiye Edilen Sayıyı Kullan</button>
       </div>
     </div>
 
     <div style="display:flex; gap:10px; margin-top:6px;">
-      <button id="skipDailyGoalBtn" class="btn" style="flex:1; height:42px; font-size:12px; font-weight:600; color:var(--text-secondary); border-color:rgba(255,255,255,0.1);" onclick="onSkipDailyGoalClicked()">⚡ Bugünlük Pas Geç (Hedefsiz Çalış)</button>
-      <button id="confirmDailyGoalBtn" class="btn btn-emerald" style="flex:1.2; height:42px; font-size:13px; font-weight:700;" onclick="onConfirmDailyGoalClicked()">🎯 Hedefi Onayla ve Başla</button>
+      <button id="skipDailyGoalBtn" class="btn" style="flex:1; height:42px; font-size:12px; font-weight:600; color:var(--text-secondary); border-color:rgba(255,255,255,0.1);" onclick="onSkipDailyGoalClicked()">Bugünlük Pas Geç (Hedefsiz Çalış)</button>
+      <button id="confirmDailyGoalBtn" class="btn btn-emerald" style="flex:1.2; height:42px; font-size:13px; font-weight:700;" onclick="onConfirmDailyGoalClicked()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:4px;"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Hedefi Onayla ve Başla</button>
     </div>
 
   </div>
@@ -1376,6 +1701,12 @@ async function pollState() {
     if (data) {
       const prevTab = STATE ? STATE.tab : null;
       STATE = data;
+      if (data.settings && data.settings.theme) {
+        const curTh = document.body.getAttribute('data-theme') || 'obsidian';
+        if (curTh !== data.settings.theme) {
+          document.body.setAttribute('data-theme', data.settings.theme);
+        }
+      }
       updateHeaderAndDock(data);
       renderStageIfNeeded(data, prevTab !== currentTab);
       if (data.AutoOpenRewardPopup) {
@@ -1399,16 +1730,16 @@ function updateHeaderAndDock(d) {
   if (dg && dgTxt && dgBtn) {
     if (dg.goal > 0) {
       if (dg.completed) {
-        dgTxt.textContent = `🏆 Hedef: ${dg.today_solved}/${dg.goal} Soru`;
+        dgTxt.textContent = `[Tamamlandı] Hedef: ${dg.today_solved}/${dg.goal} Soru`;
         dgBtn.style.borderColor = "rgba(16,185,129,0.7)";
         dgBtn.style.color = "#34d399";
       } else {
-        dgTxt.textContent = `🎯 Hedef: ${dg.today_solved}/${dg.goal} Soru`;
+        dgTxt.textContent = `Hedef: ${dg.today_solved}/${dg.goal} Soru`;
         dgBtn.style.borderColor = "rgba(16,185,129,0.35)";
         dgBtn.style.color = "#38bdf8";
       }
     } else {
-      dgTxt.textContent = "🎯 Günlük Hedef";
+      dgTxt.textContent = "Hedef Belirle";
       dgBtn.style.borderColor = "rgba(255,255,255,0.12)";
       dgBtn.style.color = "var(--text-secondary)";
     }
@@ -1909,7 +2240,7 @@ function renderStatsView(vp, st) {
         <div class="subject-q-row ${s.needs_question_input ? 'pulse-attention' : ''}" style="border-color:${s.needs_question_input ? 'transparent' : s.rank.border};">
           <div style="display:flex; align-items:center; gap:6px; min-width:0;">
             <span style="font-size:12px; font-weight:700; color:${s.rank.text};">${s.questions} Soru • [${escapeHtml(s.rank.title)}]</span>
-            ${s.needs_question_input ? `<span style="font-size:10px; font-weight:800; color:#38bdf8; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3); padding:1px 6px; border-radius:4px;">✨ ÇÖZÜLEN SORUYU GİR</span>` : ''}
+            ${s.needs_question_input ? `<span style="font-size:10px; font-weight:800; color:#38bdf8; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3); padding:1px 6px; border-radius:4px;"<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" style="margin-right:3px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>ÇÖZÜLEN SORUYU GİR</span>` : ''}
             <button class="btn" style="height:22px; padding:0 8px; font-size:10.5px;" onclick="subjectRankExpanded['${s.id}']=!subjectRankExpanded['${s.id}']; lastStageSig=''; pollState();">
               Rütbeler ${exp ? '▴' : '▾'}
             </button>
@@ -2231,7 +2562,7 @@ function renderBreakSettingsChoices(data) {
   bRow.innerHTML = data.break_options.map(o => {
     const isLocked = o.minutes > maxAllowed;
     if (isLocked) {
-      return `<button type="button" class="btn" style="height:36px; opacity:0.35; cursor:not-allowed; background:rgba(255,255,255,0.03);" disabled title="${Math.round(selectedGoalSec/60)} dk çalışma için en fazla ${maxAllowed} dk mola verilebilir (Disiplin Kuralı).">🔒 ${escapeHtml(o.label)}</button>`;
+      return `<button type="button" class="btn" style="height:36px; opacity:0.35; cursor:not-allowed; background:rgba(255,255,255,0.03);" disabled title="${Math.round(selectedGoalSec/60)} dk çalışma için en fazla ${maxAllowed} dk mola verilebilir (Disiplin Kuralı)."> ${escapeHtml(o.label)}</button>`;
     }
     return `<button type="button" class="btn ${o.minutes===selectedBreakMin?'btn-primary':''}" style="height:36px;" onclick="selectedBreakMin=${o.minutes}; renderBreakSettingsChoices(currentBreakModalData)">${escapeHtml(o.label)}</button>`;
   }).join("");
@@ -2609,14 +2940,14 @@ const TUTORIAL_STEPS = [
             <line x1="25" y1="80" x2="135" y2="120" stroke="#f43f5e" stroke-width="2.5" stroke-dasharray="6 4" filter="url(#v3-glow)" />
             <polygon points="135,120 120,112 125,126" fill="#f43f5e" />
             <circle cx="135" cy="120" r="12" fill="none" stroke="#34d399" stroke-width="2" style="animation: shockwaveRing 1.8s infinite; transform-origin: 135px 120px;" />
-            <text x="25" y="70" fill="#fb7185" font-family="monospace" font-size="9" font-weight="700">⚔ TASKKILL.EXE [DEFLECTED]</text>
+            <text x="25" y="70" fill="#fb7185" font-family="monospace" font-size="9" font-weight="700"> TASKKILL.EXE [DEFLECTED]</text>
           </g>
 
           <g>
             <line x1="25" y1="240" x2="135" y2="190" stroke="#f43f5e" stroke-width="2.5" stroke-dasharray="6 4" filter="url(#v3-glow)" />
             <polygon points="135,190 120,194 128,206" fill="#f43f5e" />
             <circle cx="135" cy="190" r="12" fill="none" stroke="#34d399" stroke-width="2" style="animation: shockwaveRing 1.8s 0.6s infinite; transform-origin: 135px 190px;" />
-            <text x="25" y="255" fill="#fb7185" font-family="monospace" font-size="9" font-weight="700">⚔ TIME_HACK [BLOCKED]</text>
+            <text x="25" y="255" fill="#fb7185" font-family="monospace" font-size="9" font-weight="700"> TIME_HACK [BLOCKED]</text>
           </g>
 
           <text x="210" y="295" text-anchor="middle" font-family="monospace" font-size="10.5" font-weight="800" fill="#34d399" letter-spacing="1">TAVİZSİZ ÇEKİRDEK KORUMASI: AŞILAMAZ</text>
@@ -2663,7 +2994,7 @@ const TUTORIAL_STEPS = [
           <g transform="translate(265,130)">
             <rect x="0" y="0" width="95" height="38" rx="8" fill="#1b1118" stroke="#f43f5e" stroke-width="1.8" filter="url(#v4-glow)" />
             <circle cx="18" cy="19" r="6" fill="#f43f5e" />
-            <text x="56" y="24" text-anchor="middle" font-family="monospace" font-size="10.5" font-weight="700" fill="#fda4af">tiktok.com 🔒</text>
+            <text x="56" y="24" text-anchor="middle" font-family="monospace" font-size="10.5" font-weight="700" fill="#fda4af">tiktok.com </text>
           </g>
 
           <g transform="translate(45,235)">
@@ -3004,7 +3335,7 @@ const TUTORIAL_STEPS = [
           <g transform="translate(55, 150)">
             <g style="animation: floatSlow 3s ease-in-out infinite; transform-origin: 0 0;">
               <rect x="0" y="0" width="84" height="32" rx="8" fill="#131c17" stroke="#34d399" stroke-width="1.5" filter="url(#v10-glow)" />
-              <text x="42" y="20" text-anchor="middle" font-family="sans-serif" font-size="9.5" font-weight="800" fill="#34d399">🎮 OYUN AÇIK</text>
+              <text x="42" y="20" text-anchor="middle" font-family="sans-serif" font-size="9.5" font-weight="800" fill="#34d399">OYUN AÇIK</text>
             </g>
           </g>
 
@@ -3012,7 +3343,7 @@ const TUTORIAL_STEPS = [
           <g transform="translate(281, 150)">
             <g style="animation: floatSlow 3.5s 0.5s ease-in-out infinite; transform-origin: 0 0;">
               <rect x="0" y="0" width="84" height="32" rx="8" fill="#131c17" stroke="#34d399" stroke-width="1.5" filter="url(#v10-glow)" />
-              <text x="42" y="20" text-anchor="middle" font-family="sans-serif" font-size="9.5" font-weight="800" fill="#34d399">🎬 SİTE AÇIK</text>
+              <text x="42" y="20" text-anchor="middle" font-family="sans-serif" font-size="9.5" font-weight="800" fill="#34d399">SİTE AÇIK</text>
             </g>
           </g>
 
@@ -3074,6 +3405,696 @@ window.addEventListener("pywebviewready", () => {
   pollState();
   setInterval(pollState, 400);
 });
+
+// -------------------------------------------------------------
+// AYARLAR SEKME VE YÜZEN BARAJ / MOTİVASYON YÖNETİMİ
+// -------------------------------------------------------------
+let previousTab = "Uygulamalarım";
+let lastSettingsData = null;
+
+function onHeaderSettingsBtnClick() {
+  if (currentTab === "Ayarlar") {
+    exitSettingsView();
+  } else {
+    openSettingsView();
+  }
+}
+
+function openSettingsView() {
+  if (currentTab !== "Ayarlar") {
+    previousTab = currentTab;
+  }
+  currentTab = "Ayarlar";
+  const shell = document.querySelector(".app-shell");
+  if (shell) shell.classList.add("in-settings-view");
+  lastStageSig = "";
+  pollState();
+}
+
+function exitSettingsView() {
+  currentTab = previousTab || "Uygulamalarım";
+  const shell = document.querySelector(".app-shell");
+  if (shell) shell.classList.remove("in-settings-view");
+  document.querySelectorAll("#navTabs .tab-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.getAttribute("data-tab") === currentTab);
+  });
+  lastStageSig = "";
+  pollState();
+}
+
+function renderSettingsView(vp, settingsData) {
+  const st = (settingsData && settingsData.settings) || (STATE && STATE.settings) || {};
+  const personas = (settingsData && settingsData.personas) || [
+    { id: "komutan", name: "Komutan", tagline: "Bahaneleri Yok Et", desc: "Sert, tavizsiz ve disiplinli askeri nizam koçu. Bahanelere asla yer yok!" },
+    { id: "yks_kocu", name: "YKS Derece Koçu", tagline: "Hedef Derece", desc: "Stratejik, net hedefli, ilk 1000 zihniyeti ve taktiksel soru rehberliği." },
+    { id: "noro_biyoloji", name: "Nöro-Biyoloji & Stoik", tagline: "Dopamin ve İrade Mimarisi", desc: "Dopamin detoksu, prefrontal korteks yönetimi ve stoik irade mimarisi." }
+  ];
+  const curQuote = (settingsData && settingsData.current_quote) || "Disiplin, ne hissettiğinden bağımsız olarak yapılması gerekeni yapmaktır.";
+  const activeTheme = st.theme || "obsidian";
+  const activePersona = st.coach_persona || "komutan";
+  const fbWidth = parseInt(st.floating_bar_width, 10) || 260;
+  const fbHeight = parseInt(st.floating_bar_height, 10) || 42;
+  const fbOpacity = (typeof st.floating_bar_opacity !== "undefined") ? Math.round(st.floating_bar_opacity * 100) : 92;
+  const isFbVertical = (fbHeight > fbWidth);
+
+  vp.innerHTML = `
+    <div class="settings-container">
+      <!-- TOP BAR WITH BACK BUTTON AND SEARCH -->
+      <div class="settings-topbar">
+        <div style="display:flex; align-items:center; gap:14px;">
+          <button class="btn btn-primary" onclick="exitSettingsView()" style="height:36px; padding:0 16px; font-weight:700; gap:8px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span>Geri Dön</span>
+          </button>
+          <div>
+            <div style="font-size:15px; font-weight:800; color:#f8fafc; display:flex; align-items:center; gap:8px;">
+              <span>Sistem ve Odak Ayarları</span>
+              <span style="font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:6px; background:rgba(16,185,129,0.12); color:#34d399; border:1px solid rgba(16,185,129,0.25);">Argon Engine v2.4</span>
+            </div>
+            <div style="font-size:11px; color:var(--text-secondary);">Görünüm, Yüzen HUD Barajı, Motivasyon Motoru ve Katı Kalkanlar</div>
+          </div>
+        </div>
+
+        <div class="settings-search-wrap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input id="settingsSearchInput" type="text" placeholder="Ayarlarda ara... (Örn: yüzen baraj, tema, koç, görev yöneticisi, ses)" oninput="filterSettingsRows(this.value)">
+        </div>
+      </div>
+
+      <!-- SETTINGS BODY: SIDEBAR + CONTENT PANE -->
+      <div class="settings-body">
+        <!-- SIDEBAR CATEGORIES -->
+        <div class="settings-sidebar">
+          <button class="settings-nav-item active" data-target-sec="sec-appearance" onclick="scrollToSettingsSection('sec-appearance')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
+            <span>Görünüm & Temalar</span>
+          </button>
+          <button class="settings-nav-item" data-target-sec="sec-floating" onclick="scrollToSettingsSection('sec-floating')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+            <span>Yüzen Mola Barajı</span>
+          </button>
+          <button class="settings-nav-item" data-target-sec="sec-motivation" onclick="scrollToSettingsSection('sec-motivation')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <span>Motivasyon & Koçluk</span>
+          </button>
+          <button class="settings-nav-item" data-target-sec="sec-break" onclick="scrollToSettingsSection('sec-break')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Mola & Baraj Sistemi</span>
+          </button>
+          <button class="settings-nav-item" data-target-sec="sec-shield" onclick="scrollToSettingsSection('sec-shield')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Kalkan & Güvenlik</span>
+          </button>
+          <button class="settings-nav-item" data-target-sec="sec-sound" onclick="scrollToSettingsSection('sec-sound')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            <span>Ses & Bildirimler</span>
+          </button>
+          <button class="settings-nav-item" data-target-sec="sec-system" onclick="scrollToSettingsSection('sec-system')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span>Sistem & Başlangıç</span>
+          </button>
+        </div>
+
+        <!-- CONTENT PANE -->
+        <div class="settings-content-pane" id="settingsContentPane">
+          <div id="settingsSearchEmpty" style="display:none; text-align:center; padding:40px 20px; color:var(--text-muted); font-size:13px;">
+            Aradığınız kritere uygun ayar bulunamadı. Lütfen farklı bir arama kelimesi deneyin.
+          </div>
+
+          <!-- SECTION 1: APPEARANCE & THEMES -->
+          <div class="settings-section-card" id="sec-appearance" data-keywords="tema görünüm renk obsidian oled cyber siber zümrüt gece mavisi ametist animasyon">
+            <div class="settings-section-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/></svg>
+              <span>Görünüm & Temalar</span>
+            </div>
+
+            <div class="setting-row" data-keywords="renk paleti tema obsidian oled zümrüt safir ametist">
+              <div class="setting-row-info">
+                <div class="setting-title">Arayüz Renk Teması</div>
+                <div class="setting-desc">Kişisel odaklanma stilinize ve monitör panelinize en uygun renk paletini seçin.</div>
+              </div>
+            </div>
+
+            <div class="theme-grid">
+              <button class="theme-card-btn ${activeTheme==='obsidian'?'active':''}" data-theme-name="obsidian" onclick="changeTheme('obsidian')">
+                <div class="theme-swatch" style="background:linear-gradient(135deg, #101118 60%, #10b981 100%);"></div>
+                <span style="font-size:12px; font-weight:700;">Obsidian</span>
+                <span style="font-size:10px; color:var(--text-muted);">Varsayılan Kömür</span>
+              </button>
+
+              <button class="theme-card-btn ${activeTheme==='oled'?'active':''}" data-theme-name="oled" onclick="changeTheme('oled')">
+                <div class="theme-swatch" style="background:linear-gradient(135deg, #000000 60%, #10b981 100%);"></div>
+                <span style="font-size:12px; font-weight:700;">OLED Saf Siyah</span>
+                <span style="font-size:10px; color:var(--text-muted);">Maksimum Kontrast</span>
+              </button>
+
+              <button class="theme-card-btn ${activeTheme==='cyber_emerald'?'active':''}" data-theme-name="cyber_emerald" onclick="changeTheme('cyber_emerald')">
+                <div class="theme-swatch" style="background:linear-gradient(135deg, #051a10 60%, #34d399 100%);"></div>
+                <span style="font-size:12px; font-weight:700;">Siber Zümrüt</span>
+                <span style="font-size:10px; color:var(--text-muted);">Neon Biyolüminesans</span>
+              </button>
+
+              <button class="theme-card-btn ${activeTheme==='midnight_blue'?'active':''}" data-theme-name="midnight_blue" onclick="changeTheme('midnight_blue')">
+                <div class="theme-swatch" style="background:linear-gradient(135deg, #070e1b 60%, #38bdf8 100%);"></div>
+                <span style="font-size:12px; font-weight:700;">Gece Mavisi</span>
+                <span style="font-size:10px; color:var(--text-muted);">Derin Safir</span>
+              </button>
+
+              <button class="theme-card-btn ${activeTheme==='amethyst'?'active':''}" data-theme-name="amethyst" onclick="changeTheme('amethyst')">
+                <div class="theme-swatch" style="background:linear-gradient(135deg, #0f0b18 60%, #a78bfa 100%);"></div>
+                <span style="font-size:12px; font-weight:700;">Ametist Mor</span>
+                <span style="font-size:10px; color:var(--text-muted);">Gizemli Koyu Mor</span>
+              </button>
+            </div>
+
+            <div class="setting-row" data-keywords="animasyon akıcı geçiş">
+              <div class="setting-row-info">
+                <div class="setting-title">Akıcı UI Animasyonları</div>
+                <div class="setting-desc">Pencere açılışları ve sekme geçişlerinde iPhone tarzı smooth fade-in ve yaylanma efektlerini etkinleştirir.</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" ${st.fluid_animations!==false?'checked':''} onchange="onSettingToggle('fluid_animations', this)">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- SECTION 2: FLOATING BREAK BAR HUD -->
+          <div class="settings-section-card" id="sec-floating" data-keywords="yüzen mola barajı floating bar hud masaüstü widget dikey yatay genişlik yükseklik opaklık konum sürükle bırak">
+            <div class="settings-section-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+              <span>Yüzen Mola Barajı HUD (Desktop Widget)</span>
+            </div>
+
+            <div class="setting-row" data-keywords="yüzen mola barajı etkinleştir masaüstü">
+              <div class="setting-row-info">
+                <div class="setting-title">Yüzen Mola Barajını Etkinleştir</div>
+                <div class="setting-desc">Tüm pencerelerin (fullscreen oyun, video ve dersler dahil) üstünde yüzen, odak sürenizi ve mola durumunu anlık gösteren hafif masaüstü HUD widget'ı.</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" id="fbEnabledToggle" ${st.floating_bar_enabled?'checked':''} onchange="onSettingToggle('floating_bar_enabled', this)">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <!-- LIVE PREVIEW & ORIENTATION RULE -->
+            <div style="background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:12px; font-weight:700; color:#f8fafc;">Canlı Widget Geometri Önizlemesi</span>
+                <div id="fbDirectionBadge">
+                  ${isFbVertical
+                    ? `<span style="display:inline-flex; align-items:center; gap:5px; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.35); padding:4px 10px; border-radius:6px; font-weight:700; font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>DİKEY MOD (YUKARIDAN AŞAĞIYA DOLUŞ)</span>`
+                    : `<span style="display:inline-flex; align-items:center; gap:5px; background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.35); padding:4px 10px; border-radius:6px; font-weight:700; font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>YATAY MOD (SOLDAN SAĞA DOLUŞ)</span>`
+                  }
+                </div>
+              </div>
+
+              <div class="floating-bar-preview-box">
+                <div id="fbPreviewVisual" class="fb-preview-shape ${isFbVertical?'is-vert':'is-horiz'}" style="width:${isFbVertical ? Math.min(60, Math.max(26, fbWidth * 0.4)) : Math.min(280, Math.max(30, fbWidth * 0.45))}px; height:${isFbVertical ? Math.min(140, Math.max(60, fbHeight * 0.4)) : Math.min(160, Math.max(20, fbHeight * 0.45))}px; opacity:${fbOpacity/100};">
+                  ${isFbVertical
+                    ? `<div class="fb-preview-fill-v"></div><span style="font-size:9px; font-weight:800; color:#fff; z-index:2;">%65</span>`
+                    : `<div class="fb-preview-fill-h"></div><span style="font-size:10px; font-weight:700; color:#fff; z-index:2;">ODAK BARAJI %65</span>`
+                  }
+                </div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:8px;">Fareyle tutulup masaüstünde herhangi bir yere sürüklenebilir • Çift tıklandığında Odak Asistanı ana penceresini öne getirir.</div>
+              </div>
+
+              <!-- PRESETS -->
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px;">
+                <span style="font-size:11px; font-weight:700; color:var(--text-secondary);">Hızlı Kalıplar:</span>
+                <button type="button" class="btn" style="height:26px; padding:0 9px; font-size:10.5px;" onclick="setFloatingBarPreset(260, 42)">Yatay Standart (260x42)</button>
+                <button type="button" class="btn" style="height:26px; padding:0 9px; font-size:10.5px;" onclick="setFloatingBarPreset(320, 28)">Yatay İnce (320x28)</button>
+                <button type="button" class="btn" style="height:26px; padding:0 9px; font-size:10.5px;" onclick="setFloatingBarPreset(44, 220)">Dikey Mini (44x220)</button>
+                <button type="button" class="btn" style="height:26px; padding:0 9px; font-size:10.5px;" onclick="setFloatingBarPreset(56, 300)">Dikey Geniş (56x300)</button>
+              </div>
+            </div>
+
+            <!-- DIMENSION SLIDERS & INPUTS -->
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-top:6px;">
+              <div style="background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:10px; padding:10px 12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <span style="font-size:11.5px; font-weight:700; color:var(--text-secondary);">Genişlik (W)</span>
+                  <span id="fbWidthValLabel" style="font-size:11.5px; font-weight:800; color:var(--accent-emerald-text);">${fbWidth} px</span>
+                </div>
+                <input id="fbWidthRange" type="range" min="30" max="600" value="${fbWidth}" style="width:100%;" oninput="document.getElementById('fbWidthInp').value=this.value; onFloatingBarDimChange();" onchange="saveFloatingBarDims();">
+                <input id="fbWidthInp" type="number" min="30" max="600" value="${fbWidth}" class="form-input" style="height:28px; font-size:11px; margin-top:6px;" oninput="document.getElementById('fbWidthRange').value=this.value; onFloatingBarDimChange();" onchange="saveFloatingBarDims();">
+              </div>
+
+              <div style="background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:10px; padding:10px 12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <span style="font-size:11.5px; font-weight:700; color:var(--text-secondary);">Yükseklik (H)</span>
+                  <span id="fbHeightValLabel" style="font-size:11.5px; font-weight:800; color:#38bdf8;">${fbHeight} px</span>
+                </div>
+                <input id="fbHeightRange" type="range" min="20" max="600" value="${fbHeight}" style="width:100%;" oninput="document.getElementById('fbHeightInp').value=this.value; onFloatingBarDimChange();" onchange="saveFloatingBarDims();">
+                <input id="fbHeightInp" type="number" min="20" max="600" value="${fbHeight}" class="form-input" style="height:28px; font-size:11px; margin-top:6px;" oninput="document.getElementById('fbHeightRange').value=this.value; onFloatingBarDimChange();" onchange="saveFloatingBarDims();">
+              </div>
+
+              <div style="background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:10px; padding:10px 12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <span style="font-size:11.5px; font-weight:700; color:var(--text-secondary);">Opaklık</span>
+                  <span id="fbOpacityValLabel" style="font-size:11.5px; font-weight:800; color:#f8fafc;">%${fbOpacity}</span>
+                </div>
+                <input id="fbOpacityInp" type="range" min="30" max="100" value="${fbOpacity}" style="width:100%;" oninput="onFloatingBarDimChange();" onchange="saveFloatingBarDims();">
+                <div style="font-size:10.5px; color:var(--text-muted); margin-top:10px;">%30 (Yarı Saydam) - %100 (Tam Mat)</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 3: MOTIVATION & COACH ENGINE -->
+          <div class="settings-section-card" id="sec-motivation" data-keywords="motivasyon koç komutan yks koçu nöro biyoloji stoik söz zihin psikoloji">
+            <div class="settings-section-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2.2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              <span>Motivasyon Motoru & Koçluk Personası</span>
+            </div>
+
+            <div class="setting-row" data-keywords="koçluk personelleri komutan yks nörobiyoloji">
+              <div class="setting-row-info">
+                <div class="setting-title">Aktif Koçluk Personası</div>
+                <div class="setting-desc">Ders çalışırken, mola yaklaşırken ve mola bittiğinde size seslenecek olan rehber zihin üslubunu belirleyin. LLM çalıştırmaz; sıfır bellek yükü ile 100+ psikolojik emir barındırır.</div>
+              </div>
+            </div>
+
+            <div class="theme-grid" style="grid-template-columns: repeat(3, 1fr);">
+              <div class="theme-card-btn persona-card-btn ${activePersona==='komutan'?'active':''}" data-persona-id="komutan" onclick="changePersona('komutan')">
+                <div style="width:34px; height:34px; border-radius:10px; background:rgba(239, 68, 68, 0.12); color:#ef4444; display:flex; align-items:center; justify-content:center;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <div style="font-weight:700; font-size:13px; color:#f8fafc;">Komutan</div>
+                <div style="font-size:10.5px; color:var(--text-secondary); text-align:center;">Sert, tavizsiz ve disiplinli askeri nizam koçu. Bahanelere asla yer yok!</div>
+              </div>
+
+              <div class="theme-card-btn persona-card-btn ${activePersona==='yks_kocu'?'active':''}" data-persona-id="yks_kocu" onclick="changePersona('yks_kocu')">
+                <div style="width:34px; height:34px; border-radius:10px; background:rgba(16, 185, 129, 0.12); color:#10b981; display:flex; align-items:center; justify-content:center;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polygon points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div style="font-weight:700; font-size:13px; color:#f8fafc;">YKS Derece Koçu</div>
+                <div style="font-size:10.5px; color:var(--text-secondary); text-align:center;">Stratejik, net hedefli, ilk 1000 zihniyeti ve taktiksel soru rehberliği.</div>
+              </div>
+
+              <div class="theme-card-btn persona-card-btn ${activePersona==='noro_biyoloji'?'active':''}" data-persona-id="noro_biyoloji" onclick="changePersona('noro_biyoloji')">
+                <div style="width:34px; height:34px; border-radius:10px; background:rgba(168, 85, 247, 0.12); color:#a855f7; display:flex; align-items:center; justify-content:center;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/></svg>
+                </div>
+                <div style="font-weight:700; font-size:13px; color:#f8fafc;">Nöro-Biyoloji & Stoik</div>
+                <div style="font-size:10.5px; color:var(--text-secondary); text-align:center;">Dopamin detoksu, prefrontal korteks yönetimi ve stoik irade mimarisi.</div>
+              </div>
+            </div>
+
+            <!-- LIVE QUOTE PREVIEW -->
+            <div style="background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:12px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
+              <div style="flex:1;">
+                <div style="font-size:10px; font-weight:800; letter-spacing:0.8px; color:var(--accent-emerald-text); margin-bottom:4px;">GÜNCEL KOÇLUK SÖZÜ VE ZİHİN TALİMATI</div>
+                <div id="quotePreviewText" style="font-size:13px; font-style:italic; color:#f1f5f9; line-height:1.45;">“${escapeHtml(curQuote)}”</div>
+              </div>
+              <button class="btn" style="height:34px; padding:0 12px; font-size:11.5px; flex-shrink:0; border-color:var(--border-default);" onclick="refreshMotivationQuote()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <span>Yeni Söz</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- SECTION 4: BREAK & TIMER SYSTEM -->
+          <div class="settings-section-card" id="sec-break" data-keywords="mola barajı sayaç ders süresi hedef soru adaletli baraj sıradaki aralık">
+            <div class="settings-section-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span>Mola Barajı & Sayaç Sistemi</span>
+            </div>
+
+            <div class="setting-row" data-keywords="mola barajı kapasite süre hedef">
+              <div class="setting-row-info">
+                <div class="setting-title">Mola Barajı Yapılandırması</div>
+                <div class="setting-desc">Ders çalışma süresi (örn: 45 dk, 1 saat, 2 saat) ve kazanılacak mola süresini (örn: 10 dk, 15 dk, 30 dk) ayarlayın. Adaletli baraj aktarımı ve sıradaki mola kuyruğu devrededir.</div>
+              </div>
+              <button class="btn btn-primary" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="openBreakSettingsModal()">Yapılandır</button>
+            </div>
+
+            <div class="setting-row" data-keywords="günlük hedef soru tavsiye">
+              <div class="setting-row-info">
+                <div class="setting-title">Günlük Soru Çözüm Hedefi</div>
+                <div class="setting-desc">Her gece 00:00 sonrası ilk açılışta günün tavsiye edilen matematiksel soru hedefini belirler.</div>
+              </div>
+              <button class="btn" style="height:32px; padding:0 12px; font-size:11.5px;" onclick="openDailyGoalModal(false)">Hedefi Gör / Değiş</button>
+            </div>
+
+            <div class="setting-row" data-keywords="manuel sayaç mola dolunca durma soru ekleme">
+              <div class="setting-row-info">
+                <div class="setting-title">Mola Dolduğunda Manuel Sayacı Durdurma Kuralı</div>
+                <div class="setting-desc">Manuel sayaç devredeyken mola barajı dolduğunda sayaç beklemede kalmaz, otomatik olarak TAMAMEN durdurulur ve çözülen soru kutusu renk değiştirerek öne çıkar.</div>
+              </div>
+              <span style="font-size:11px; font-weight:700; color:var(--accent-emerald-text); padding:4px 8px; border-radius:6px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.25);">Aktif Sistem Kuralı</span>
+            </div>
+          </div>
+
+          <!-- SECTION 5: SHIELD & HARDCORE SECURITY -->
+          <div class="settings-section-card" id="sec-shield" data-keywords="kalkan güvenlik görev yöneticisi taskmgr hosts engelleme tyt yks kilidi">
+            <div class="settings-section-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span>Kalkan & Güvenlik Parametreleri</span>
+            </div>
+
+            <div class="setting-row" data-keywords="görev yöneticisi taskmgr kalkan öldür sonlandır kapat engelle">
+              <div class="setting-row-info">
+                <div class="setting-title">Görev Yöneticisi Kalkanı (Anti-Taskmgr)</div>
+                <div class="setting-desc">Açıkken Windows Görev Yöneticisi (taskmgr.exe) açıldığı anda otomatik olarak sonlandırılır. Odak kilitlerinin ve sayaçların görev yöneticisinden durdurulmasını kesin olarak engeller.</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" ${st.block_taskmgr?'checked':''} onchange="onSettingToggle('block_taskmgr', this)">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row" data-keywords="süreç kalkanı process blocker exe">
+              <div class="setting-row-info">
+                <div class="setting-title">Süreç Kalkanı (Process Blocker)</div>
+                <div class="setting-desc">Kilitli oyun ve masaüstü uygulamalarının (.exe) çalışmasını 0.4 saniye aralıklarla denetler ve anında kapatır.</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" ${st.enable_process_blocker!==false?'checked':''} onchange="onSettingToggle('enable_process_blocker', this)">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row" data-keywords="hosts dns kalkanı web siteleri">
+              <div class="setting-row-info">
+                <div class="setting-title">Hosts DNS Kalkanı (Web Siteleri)</div>
+                <div class="setting-desc">Kilitli siteleri Windows hosts dosyası düzeyinde 127.0.0.1 loopback adresine yönlendirerek tüm tarayıcılarda engeller.</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" ${st.enable_hosts_blocker!==false?'checked':''} onchange="onSettingToggle('enable_hosts_blocker', this)">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row" data-keywords="sekme kalkanı tab closer tarayıcı">
+              <div class="setting-row-info">
+                <div class="setting-title">Tarayıcı Sekme Kalkanı (Tab Closer)</div>
+                <div class="setting-desc">Kilitli site başlıklarını taşıyan Chrome, Edge ve Brave sekmelerini otomatik olarak algılar ve anında kapatır.</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" ${st.enable_tab_closer!==false?'checked':''} onchange="onSettingToggle('enable_tab_closer', this)">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row" data-keywords="hosts temizleme çıkış">
+              <div class="setting-row-info">
+                <div class="setting-title">Uygulama Kapanışında Hosts'u Temizle</div>
+                <div class="setting-desc">Uygulama kapatıldığında hosts dosyasındaki engelleri kaldırır (Katı Odak Modu kapalıysa önerilir).</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" ${st.clean_hosts_on_exit?'checked':''} onchange="onSettingToggle('clean_hosts_on_exit', this)">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- SECTION 6: SOUND & NOTIFICATIONS -->
+          <div class="settings-section-card" id="sec-sound" data-keywords="ses bildirim mola dolunca uyarı flaş görev çubuğu 1 dk kala">
+            <div class="settings-section-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2.2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              <span>Ses & Bildirim Tercihleri</span>
+            </div>
+
+            <div class="setting-row" data-keywords="ses mola hazır zil">
+              <div class="setting-row-info">
+                <div class="setting-title">Mola Barajı Dolduğunda Ses Çal</div>
+                <div class="setting-desc">Çalışma süreniz tamamlanıp mola hakkı kazandığınızda hafif akustik bildirim sesi üretir.</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" ${st.sound_break_ready!==false?'checked':''} onchange="onSettingToggle('sound_break_ready', this)">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row" data-keywords="mola bitti kilitleme ses">
+              <div class="setting-row-info">
+                <div class="setting-title">Mola Süresi Bittiğinde Ses Çal</div>
+                <div class="setting-desc">Kullanılan mola bittiğinde ve kilitler yeniden devreye girdiğinde uyarı sesi çalar.</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" ${st.sound_break_relock!==false?'checked':''} onchange="onSettingToggle('sound_break_relock', this)">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row" data-keywords="görev çubuğu flaş yanıp sönme">
+              <div class="setting-row-info">
+                <div class="setting-title">Görev Çubuğunda Bildirim Flaşla</div>
+                <div class="setting-desc">Mola barajı dolduğunda Windows görev çubuğunda Odak Asistanı simgesini turuncu renkle uyarır.</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" ${st.taskbar_flash!==false?'checked':''} onchange="onSettingToggle('taskbar_flash', this)">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row" data-keywords="1 dakika kala yüzen masaüstü uyarısı popup overlay">
+              <div class="setting-row-info">
+                <div class="setting-title">Mola Bitişine 1 Dk Kala Yüzen Masaüstü Uyarısı</div>
+                <div class="setting-desc">Molanın bitmesine 1 dakika kaldığında ekranın ortasında 3 saniye boyunca yüzen estetik sayaç uyarısı gösterir.</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" ${st.break_overlay_enabled!==false?'checked':''} onchange="onSettingToggle('break_overlay_enabled', this)">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- SECTION 7: SYSTEM & STARTUP -->
+          <div class="settings-section-card" id="sec-system" data-keywords="sistem başlangıç açılış windows tepsi tray sürüm versiyon">
+            <div class="settings-section-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <span>Sistem & Başlangıç</span>
+            </div>
+
+            <div class="setting-row" data-keywords="başlangıçta çalıştır startup autorun">
+              <div class="setting-row-info">
+                <div class="setting-title">Windows Başlangıcında Otomatik Çalıştır</div>
+                <div class="setting-desc">Bilgisayar her açıldığında Odak Asistanı koruma motorunu arka planda başlatır.</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" ${st.run_on_startup!==false?'checked':''} onchange="onSettingToggle('run_on_startup', this)">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row" data-keywords="sistem tepsisi küçült tray">
+              <div class="setting-row-info">
+                <div class="setting-title">Kapatılınca Sistem Tepsisine Küçült</div>
+                <div class="setting-desc">Pencereyi kapattığınızda uygulama sonlanmaz, saat yanındaki sistem tepsisinde (tray) sessizce korumayı sürdürür.</div>
+              </div>
+              <label class="switch-toggle">
+                <input type="checkbox" ${st.minimize_to_tray!==false?'checked':''} onchange="onSettingToggle('minimize_to_tray', this)">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-row-info">
+                <div class="setting-title">Sürüm ve Mimari Bilgisi</div>
+                <div class="setting-desc">Odak Asistanı v2.4 Argon Edition • PyWebView + Win32 Native Subsystems • 120 FPS Fluid Animations</div>
+              </div>
+              <span style="font-size:11px; font-weight:700; color:var(--text-muted); font-family:monospace;">BUILD 2026.10.16</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function filterSettingsRows(query) {
+  const q = (query || "").trim().toLowerCase();
+  const cards = document.querySelectorAll(".settings-section-card");
+  let totalVisible = 0;
+
+  cards.forEach(card => {
+    const rows = card.querySelectorAll(".setting-row");
+    let cardHasMatch = false;
+
+    if (!q) {
+      card.style.display = "";
+      rows.forEach(r => r.style.display = "");
+      totalVisible++;
+      return;
+    }
+
+    const cardTitle = (card.querySelector(".settings-section-title")?.textContent || "").toLowerCase();
+    const cardKeywords = (card.getAttribute("data-keywords") || "").toLowerCase();
+    const cardMatches = cardTitle.includes(q) || cardKeywords.includes(q);
+
+    rows.forEach(row => {
+      const rowText = (row.textContent || "").toLowerCase();
+      const rowKeywords = (row.getAttribute("data-keywords") || "").toLowerCase();
+      if (cardMatches || rowText.includes(q) || rowKeywords.includes(q)) {
+        row.style.display = "";
+        cardHasMatch = true;
+        totalVisible++;
+      } else {
+        row.style.display = "none";
+      }
+    });
+
+    card.style.display = cardHasMatch ? "" : "none";
+  });
+
+  const emptyMsg = document.getElementById("settingsSearchEmpty");
+  if (emptyMsg) {
+    emptyMsg.style.display = (totalVisible === 0 && q) ? "block" : "none";
+  }
+}
+
+function scrollToSettingsSection(secId) {
+  const el = document.getElementById(secId);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.querySelectorAll(".settings-nav-item").forEach(item => {
+      item.classList.toggle("active", item.getAttribute("data-target-sec") === secId);
+    });
+  }
+}
+
+async function onSettingToggle(key, el) {
+  const checked = el.checked;
+  const updateObj = {};
+  updateObj[key] = checked;
+  const res = await callApi("save_settings", updateObj);
+  if (res && res.settings) {
+    if (STATE) STATE.settings = res.settings;
+    if (lastSettingsData) lastSettingsData.settings = res.settings;
+    setFeedback(res.message || "Ayar güncellendi", "var(--accent-emerald-text)");
+  }
+}
+
+async function onSettingValueChange(key, value) {
+  const updateObj = {};
+  updateObj[key] = value;
+  const res = await callApi("save_settings", updateObj);
+  if (res && res.settings) {
+    if (STATE) STATE.settings = res.settings;
+    if (lastSettingsData) lastSettingsData.settings = res.settings;
+    setFeedback(res.message || "Ayar güncellendi", "var(--accent-emerald-text)");
+  }
+}
+
+async function changeTheme(themeName) {
+  document.body.setAttribute('data-theme', themeName);
+  document.querySelectorAll(".theme-card-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.getAttribute("data-theme-name") === themeName);
+  });
+  await onSettingValueChange("theme", themeName);
+}
+
+async function changePersona(personaId) {
+  document.querySelectorAll(".persona-card-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.getAttribute("data-persona-id") === personaId);
+  });
+  await onSettingValueChange("coach_persona", personaId);
+  await refreshMotivationQuote();
+}
+
+async function refreshMotivationQuote() {
+  const pId = (lastSettingsData && lastSettingsData.settings && lastSettingsData.settings.coach_persona) || 
+              (STATE && STATE.settings && STATE.settings.coach_persona) || "komutan";
+  const res = await callApi("get_random_motivation", pId, "studying");
+  if (res && res.quote) {
+    const qBox = document.getElementById("quotePreviewText");
+    if (qBox) qBox.textContent = `“${res.quote}”`;
+  }
+}
+
+function onFloatingBarDimChange() {
+  const wInp = document.getElementById("fbWidthInp");
+  const hInp = document.getElementById("fbHeightInp");
+  const opInp = document.getElementById("fbOpacityInp");
+  if (!wInp || !hInp) return;
+
+  const w = parseInt(wInp.value, 10) || 260;
+  const h = parseInt(hInp.value, 10) || 42;
+  const op = parseFloat(opInp.value) / 100.0;
+
+  updateFloatingBarPreview(w, h, op);
+}
+
+function updateFloatingBarPreview(w, h, op) {
+  const badge = document.getElementById("fbDirectionBadge");
+  const previewBox = document.getElementById("fbPreviewVisual");
+  const wLabel = document.getElementById("fbWidthValLabel");
+  const hLabel = document.getElementById("fbHeightValLabel");
+  const opLabel = document.getElementById("fbOpacityValLabel");
+
+  if (wLabel) wLabel.textContent = `${w} px`;
+  if (hLabel) hLabel.textContent = `${h} px`;
+  if (opLabel) opLabel.textContent = `%${Math.round(op * 100)}`;
+
+  const isVertical = (h > w);
+  if (badge) {
+    if (isVertical) {
+      badge.innerHTML = `
+        <span style="display:inline-flex; align-items:center; gap:5px; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.35); padding:4px 10px; border-radius:6px; font-weight:700; font-size:11px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          DİKEY MOD (YUKARIDAN AŞAĞIYA DOLUŞ)
+        </span>`;
+    } else {
+      badge.innerHTML = `
+        <span style="display:inline-flex; align-items:center; gap:5px; background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.35); padding:4px 10px; border-radius:6px; font-weight:700; font-size:11px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          YATAY MOD (SOLDAN SAĞA DOLUŞ)
+        </span>`;
+    }
+  }
+
+  if (previewBox) {
+    let previewW = Math.min(280, Math.max(30, w * 0.45));
+    let previewH = Math.min(160, Math.max(20, h * 0.45));
+    if (isVertical) {
+      previewW = Math.min(60, Math.max(26, w * 0.4));
+      previewH = Math.min(140, Math.max(60, h * 0.4));
+    }
+    previewBox.style.width = `${previewW}px`;
+    previewBox.style.height = `${previewH}px`;
+    previewBox.style.opacity = op;
+    previewBox.className = `fb-preview-shape ${isVertical ? 'is-vert' : 'is-horiz'}`;
+    previewBox.innerHTML = isVertical
+      ? `<div class="fb-preview-fill-v"></div><span style="font-size:9px; font-weight:800; color:#fff; z-index:2;">%65</span>`
+      : `<div class="fb-preview-fill-h"></div><span style="font-size:10px; font-weight:700; color:#fff; z-index:2;">ODAK BARAJI %65</span>`;
+  }
+}
+
+async function saveFloatingBarDims() {
+  const wInp = document.getElementById("fbWidthInp");
+  const hInp = document.getElementById("fbHeightInp");
+  const opInp = document.getElementById("fbOpacityInp");
+  if (!wInp || !hInp) return;
+
+  const w = parseInt(wInp.value, 10) || 260;
+  const h = parseInt(hInp.value, 10) || 42;
+  const op = parseFloat(opInp.value) / 100.0;
+
+  await onSettingValueChange("floating_bar_width", w);
+  await onSettingValueChange("floating_bar_height", h);
+  await onSettingValueChange("floating_bar_opacity", op);
+}
+
+function setFloatingBarPreset(w, h) {
+  const wInp = document.getElementById("fbWidthInp");
+  const hInp = document.getElementById("fbHeightInp");
+  const wRange = document.getElementById("fbWidthRange");
+  const hRange = document.getElementById("fbHeightRange");
+  if (wInp) wInp.value = w;
+  if (wRange) wRange.value = w;
+  if (hInp) hInp.value = h;
+  if (hRange) hRange.value = h;
+  onFloatingBarDimChange();
+  saveFloatingBarDims();
+}
+
 </script>
 </body>
 </html>

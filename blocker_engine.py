@@ -172,11 +172,42 @@ class BlockerEngine:
 
         self.items = {}
         self.settings = {
+            # 1. Kalkan & Engelleme Ayarları
             "enable_process_blocker": True,
             "enable_hosts_blocker": True,
             "enable_tab_closer": True,
             "unblock_all_on_timer_end": False,
             "clean_hosts_on_exit": False,
+            "block_taskmgr": False,
+
+            # 2. Görünüm & Tema
+            "theme": "obsidian",
+            "fluid_animations": True,
+            "compact_view": False,
+
+            # 3. Yüzen Mola Barajı HUD (Widget)
+            "floating_bar_enabled": False,
+            "floating_bar_width": 260,
+            "floating_bar_height": 42,
+            "floating_bar_pos_x": 40,
+            "floating_bar_pos_y": 40,
+            "floating_bar_opacity": 0.92,
+            "floating_bar_pinned": True,
+
+            # 4. Motivasyon & Koç Motoru
+            "coach_persona": "komutan",
+            "motivation_enabled": True,
+            "motivation_frequency": 30,
+
+            # 5. Ses & Bildirim
+            "sound_break_ready": True,
+            "sound_break_relock": True,
+            "taskbar_flash": True,
+            "break_overlay_enabled": True,
+
+            # 6. Sistem & Otomasyon
+            "run_on_startup": True,
+            "minimize_to_tray": True,
         }
         self.stats = {
             "blocked_attempts": 0,
@@ -248,6 +279,8 @@ class BlockerEngine:
         self._running = True
         self._last_tab_close_ts = 0.0
         self._last_hosts_signature = None
+        self._floating_bar_proc = None
+        self._last_floating_check_ts = 0.0
 
         self.self_defense = SelfDefenseManager()
 
@@ -1226,6 +1259,9 @@ class BlockerEngine:
                         exe_lower = exe.lower().strip()
                         if exe_lower and exe_lower not in SAFE_SYSTEM_PROCESSES and exe_lower not in exempt_exes:
                             blocked_exe_map[exe_lower] = item["name"]
+
+            if self.settings.get("block_taskmgr", False):
+                blocked_exe_map["taskmgr.exe"] = "Görev Yöneticisi (Katı Koruma Kalkanı)"
 
         if not blocked_exe_map:
             return
@@ -2535,6 +2571,9 @@ class BlockerEngine:
                     self._last_proc_enforce_ts = now
                     self.enforce_processes_once()
                 self.enforce_browser_tabs_once()
+                if now - self._last_floating_check_ts >= 2.0:
+                    self._last_floating_check_ts = now
+                    self._manage_floating_bar_process()
             except Exception:
                 pass
             time.sleep(0.10)
@@ -2864,8 +2903,71 @@ class BlockerEngine:
             "recommendation": rec,
         }
 
+    def _manage_floating_bar_process(self):
+        """Yüzen Mola Barajı masaüstü widget sürecini yönetir."""
+        enabled = bool(self.settings.get("floating_bar_enabled", False))
+        if enabled:
+            if self._floating_bar_proc is None or self._floating_bar_proc.poll() is not None:
+                try:
+                    base_dir = os.path.dirname(os.path.abspath(__file__))
+                    script_path = os.path.join(base_dir, "floating_bar.py")
+                    if os.path.exists(script_path):
+                        py_exe = sys.executable
+                        if py_exe.lower().endswith("python.exe"):
+                            cw = os.path.join(os.path.dirname(py_exe), "pythonw.exe")
+                            if os.path.exists(cw):
+                                py_exe = cw
+                        CREATE_NO_WINDOW = 0x08000000
+                        self._floating_bar_proc = subprocess.Popen(
+                            [py_exe, script_path],
+                            cwd=base_dir,
+                            creationflags=CREATE_NO_WINDOW,
+                            close_fds=True,
+                        )
+                except Exception as e:
+                    self.add_log(f"⚠️ Yüzen bar başlatma hatası: {e}")
+        else:
+            if self._floating_bar_proc and self._floating_bar_proc.poll() is None:
+                try:
+                    self._floating_bar_proc.terminate()
+                except Exception:
+                    pass
+                self._floating_bar_proc = None
+
+    def update_settings(self, new_settings: dict) -> dict:
+        """Kullanıcının Ayarlar sekmesinden değiştirdiği konfigürasyonu kaydeder ve uygular."""
+        with self.lock:
+            self.settings.update(new_settings)
+            self.save_state()
+        self._manage_floating_bar_process()
+        self._notify_change()
+        return {"ok": True, "settings": dict(self.settings), "message": "Ayarlar başarıyla kaydedildi."}
+
+    def get_settings_data(self) -> dict:
+        """Ayarlar sekmesi için aktif ayarları, koçluk personellerini ve anlık motivasyonu döndürür."""
+        with self.lock:
+            s = dict(self.settings)
+        try:
+            import motivation_engine
+            personas = motivation_engine.get_all_personas()
+            cur_quote = motivation_engine.get_motivation_quote(s.get("coach_persona", "komutan"), "studying")
+        except Exception:
+            personas = []
+            cur_quote = ""
+        return {
+            "settings": s,
+            "personas": personas,
+            "current_quote": cur_quote,
+        }
+
     def shutdown(self):
         self._running = False
+        if self._floating_bar_proc and self._floating_bar_proc.poll() is None:
+            try:
+                self._floating_bar_proc.terminate()
+            except Exception:
+                pass
+            self._floating_bar_proc = None
         if self._media_monitor is not None:
             try:
                 self._media_monitor.stop()

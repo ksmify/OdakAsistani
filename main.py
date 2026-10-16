@@ -585,16 +585,19 @@ class OdakBridgeApi:
                 "video_trigger_on": is_trig_on,
             },
             "AutoOpenRewardPopup": auto_open_reward,
-            "reward_ready": bool(reward_ready),
             "daily_goal": self._engine.get_daily_goal_summary(),
             "daily_goal_should_prompt": bool(self._engine.should_show_daily_goal_modal()),
+            "settings": dict(self._engine.settings),
+            "settings_data": None,
             "items": None,
             "stats": None,
             "sources": None,
             "running_apps": None,
         }
 
-        if current_tab == "Ders Sürelerim":
+        if current_tab == "Ayarlar":
+            out["settings_data"] = self._engine.get_settings_data()
+        elif current_tab == "Ders Sürelerim":
             out["stats"] = self._build_stats_payload(current_period_label, goal, vid_title, subj_id, counting, man_active, man_subj)
         elif current_tab == "Kaynak Siteler":
             out["sources"] = self._build_sources_payload(search_query)
@@ -946,6 +949,20 @@ class OdakBridgeApi:
 
     def skip_daily_goal(self) -> dict:
         return self._engine.skip_daily_question_goal()
+
+    def get_settings_data(self) -> dict:
+        return self._engine.get_settings_data()
+
+    def save_settings(self, new_settings: dict) -> dict:
+        return self._engine.update_settings(new_settings)
+
+    def get_random_motivation(self, persona: str = "komutan", context: str = "studying") -> dict:
+        try:
+            import motivation_engine
+            quote = motivation_engine.get_motivation_quote(persona, context)
+            return {"ok": True, "quote": quote}
+        except Exception as e:
+            return {"ok": False, "quote": "Odaklanmaya devam et!", "error": str(e)}
 
     def get_lock_modal_data(self) -> dict:
         cd = self._engine.get_tyt_countdown()
