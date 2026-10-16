@@ -681,6 +681,31 @@
     justify-content: space-between;
     gap: 8px;
     flex-wrap: wrap;
+    transition: all 0.25s ease;
+  }
+
+  @keyframes borderPulseRGB {
+    0% {
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+    }
+    33% {
+      border-color: #a855f7;
+      box-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
+    }
+    66% {
+      border-color: #10b981;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.45);
+    }
+    100% {
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+    }
+  }
+
+  .subject-q-row.pulse-attention {
+    animation: borderPulseRGB 2.2s ease-in-out infinite !important;
+    background: rgba(255, 255, 255, 0.04) !important;
   }
 
   .q-input {
@@ -968,6 +993,15 @@
     </div>
 
     <div class="header-actions">
+      <button id="dailyGoalBtn" class="btn" onclick="openDailyGoalModal(false)" style="border-color:rgba(16,185,129,0.3); background:rgba(16,185,129,0.06); color:#34d399; font-weight:600;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <circle cx="12" cy="12" r="6"/>
+          <circle cx="12" cy="12" r="2"/>
+        </svg>
+        <span id="dailyGoalBtnText">Günlük Hedef</span>
+      </button>
+
       <button id="countdownBtn" class="btn" onclick="openCustomLockModal()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -1119,6 +1153,67 @@
       <button class="btn" style="height:40px;" onclick="closeModal('breakSettingsModal')">Vazgeç</button>
       <button id="saveBreakSettingsBtn" class="btn btn-primary" style="height:40px;" onclick="saveBreakSettings()">Ayarları Kaydet ve Uygula</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL: GÜNLÜK HEDEF SORU BELİRLEYİCİ (ZORUNLU AÇILIŞ KAPISI) -->
+<div id="dailyGoalModal" class="modal-backdrop">
+  <div class="modal-card" style="max-width:540px; text-align:center; position:relative;">
+    
+    <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+      <div style="width:52px; height:52px; border-radius:16px; background:linear-gradient(135deg, rgba(16,185,129,0.2), rgba(6,182,212,0.15)); border:1px solid rgba(16,185,129,0.35); display:flex; align-items:center; justify-content:center; box-shadow:0 0 24px rgba(16,185,129,0.25);">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <circle cx="12" cy="12" r="6"/>
+          <circle cx="12" cy="12" r="2"/>
+        </svg>
+      </div>
+      <div>
+        <h2 style="font-size:18px; font-weight:800; color:#f8fafc; letter-spacing:-0.02em;">Günün Soru Hedefini Belirle</h2>
+        <p style="color:var(--text-secondary); font-size:12px; margin-top:3px;">Saat 00:00'ı devirdik! Bugün kaç soruyla masadan galip kalkacaksın?</p>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:4px;">
+      <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:14px; padding:12px; text-align:left;">
+        <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Önceki Gün</div>
+        <div id="dailyGoalPrevCount" style="font-size:20px; font-weight:800; color:#e2e8f0; margin-top:2px;">-- Soru</div>
+        <div style="font-size:10.5px; color:var(--text-secondary); margin-top:2px;">Çözülen Soru</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:14px; padding:12px; text-align:left;">
+        <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Dün</div>
+        <div id="dailyGoalYesterdayCount" style="font-size:20px; font-weight:800; color:#38bdf8; margin-top:2px;">-- Soru</div>
+        <div style="font-size:10.5px; color:var(--text-secondary); margin-top:2px;">Çözülen Soru</div>
+      </div>
+    </div>
+
+    <div style="background:linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,182,212,0.05)); border:1px solid rgba(16,185,129,0.25); border-radius:14px; padding:14px; text-align:left;">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <span style="font-size:10px; font-weight:800; color:#34d399; text-transform:uppercase; letter-spacing:0.06em;">Akıllı İvme Formülü</span>
+        <span id="dailyGoalTagline" style="font-size:12px; font-weight:800; color:#10b981; background:rgba(16,185,129,0.18); border:1px solid rgba(16,185,129,0.3); padding:2px 8px; border-radius:20px;">Bence -- soru çöz!</span>
+      </div>
+      <p id="dailyGoalReason" style="font-size:11.5px; color:var(--text-secondary); margin-top:6px; line-height:1.45;"></p>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; text-align:left;">Bugünkü Hedef Soru Sayın</label>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button type="button" class="btn" style="width:42px; height:44px; font-weight:700;" onclick="adjustDailyGoalInput(-10)">-10</button>
+        <button type="button" class="btn" style="width:42px; height:44px; font-weight:700;" onclick="adjustDailyGoalInput(-1)">-1</button>
+        <input id="dailyGoalInput" type="number" min="1" max="1000" style="flex:1; height:44px; font-size:20px; font-weight:800; text-align:center; background:#0c0d14; border:1px solid rgba(255,255,255,0.15); border-radius:10px; color:#ffffff; outline:none;" placeholder="Örn: 50">
+        <button type="button" class="btn" style="width:42px; height:44px; font-weight:700;" onclick="adjustDailyGoalInput(1)">+1</button>
+        <button type="button" class="btn" style="width:42px; height:44px; font-weight:700;" onclick="adjustDailyGoalInput(10)">+10</button>
+      </div>
+      <div style="display:flex; justify-content:center; gap:6px;">
+        <button type="button" class="btn" style="font-size:11px; padding:4px 10px; border-color:rgba(16,185,129,0.3); color:#34d399;" onclick="applyRecommendedGoal()">💡 Tavsiye Edilen Sayıyı Kullan</button>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:6px;">
+      <button id="skipDailyGoalBtn" class="btn" style="flex:1; height:42px; font-size:12px; font-weight:600; color:var(--text-secondary); border-color:rgba(255,255,255,0.1);" onclick="onSkipDailyGoalClicked()">⚡ Bugünlük Pas Geç (Hedefsiz Çalış)</button>
+      <button id="confirmDailyGoalBtn" class="btn btn-emerald" style="flex:1.2; height:42px; font-size:13px; font-weight:700;" onclick="onConfirmDailyGoalClicked()">🎯 Hedefi Onayla ve Başla</button>
+    </div>
+
   </div>
 </div>
 
@@ -1286,6 +1381,9 @@ async function pollState() {
       if (data.AutoOpenRewardPopup) {
         openRewardModal();
       }
+      if (data.daily_goal_should_prompt && !isDailyGoalModalOpen()) {
+        openDailyGoalModal(true);
+      }
     }
   } catch (e) {
     console.error(e);
@@ -1294,6 +1392,28 @@ async function pollState() {
 
 function updateHeaderAndDock(d) {
   document.getElementById("headerBadgeBtn").textContent = d.countdown.target_badge || "YKS 2027";
+
+  const dg = d.daily_goal;
+  const dgTxt = document.getElementById("dailyGoalBtnText");
+  const dgBtn = document.getElementById("dailyGoalBtn");
+  if (dg && dgTxt && dgBtn) {
+    if (dg.goal > 0) {
+      if (dg.completed) {
+        dgTxt.textContent = `🏆 Hedef: ${dg.today_solved}/${dg.goal} Soru`;
+        dgBtn.style.borderColor = "rgba(16,185,129,0.7)";
+        dgBtn.style.color = "#34d399";
+      } else {
+        dgTxt.textContent = `🎯 Hedef: ${dg.today_solved}/${dg.goal} Soru`;
+        dgBtn.style.borderColor = "rgba(16,185,129,0.35)";
+        dgBtn.style.color = "#38bdf8";
+      }
+    } else {
+      dgTxt.textContent = "🎯 Günlük Hedef";
+      dgBtn.style.borderColor = "rgba(255,255,255,0.12)";
+      dgBtn.style.color = "var(--text-secondary)";
+    }
+  }
+
   const dot = document.getElementById("statusDot");
   const stLbl = document.getElementById("statusLabel");
   stLbl.textContent = d.status_text;
@@ -1700,8 +1820,36 @@ function renderStatsView(vp, st) {
         </div>
       </div>
       <div style="font-size:11.5px; color:var(--text-secondary);">YouTube + Kaynak Siteler + Manuel Sayaç</div>
-    </div>
+    </div>`;
 
+  const dg = STATE && STATE.daily_goal;
+  if (dg && dg.goal > 0) {
+    const isDone = dg.completed;
+    html += `
+      <div style="background:linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,182,212,0.04)); border:1px solid ${isDone ? 'rgba(16,185,129,0.5)' : 'rgba(16,185,129,0.25)'}; border-radius:14px; padding:12px 16px; margin-top:8px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
+        <div style="display:flex; align-items:center; gap:12px; flex:1;">
+          <div style="width:36px; height:36px; border-radius:10px; background:${isDone ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.12)'}; display:flex; align-items:center; justify-content:center; color:#34d399;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <circle cx="12" cy="12" r="6"/>
+              <circle cx="12" cy="12" r="2"/>
+            </svg>
+          </div>
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12.5px; font-weight:700;">
+              <span style="color:#f8fafc;">Bugünkü Soru Hedefin: <span style="color:#34d399;">${dg.today_solved} / ${dg.goal} Soru</span></span>
+              <span style="color:${isDone ? 'var(--accent-emerald-text)' : '#38bdf8'}; font-weight:800;">%${dg.percent} ${isDone ? 'TAMAMLANDI!' : ''}</span>
+            </div>
+            <div style="width:100%; height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden; margin-top:6px;">
+              <div style="width:${Math.min(100, dg.percent)}%; height:100%; background:${isDone ? 'linear-gradient(90deg, #10b981, #34d399)' : 'linear-gradient(90deg, #0284c7, #38bdf8)'}; border-radius:3px; transition:width 0.4s ease;"></div>
+            </div>
+          </div>
+        </div>
+        <button class="btn" style="height:32px; font-size:11px; padding:0 12px; border-color:rgba(16,185,129,0.3); color:#34d399;" onclick="openDailyGoalModal(false)">Hedefi Düzenle</button>
+      </div>`;
+  }
+
+  html += `
     <div class="bento-top-grid">
       <div class="bento-metric-card">
         <div class="bento-label">TOPLAM ÇALIŞMA (${escapeHtml(currentPeriod.toUpperCase())})</div>
@@ -1758,15 +1906,16 @@ function renderStatsView(vp, st) {
 
         <div class="mini-progress"><div id="subj-bar-${s.id}" class="mini-progress-bar" style="width:${(s.share_ratio*100).toFixed(1)}%; background:${s.color};"></div></div>
 
-        <div class="subject-q-row" style="border-color:${s.rank.border};">
+        <div class="subject-q-row ${s.needs_question_input ? 'pulse-attention' : ''}" style="border-color:${s.needs_question_input ? 'transparent' : s.rank.border};">
           <div style="display:flex; align-items:center; gap:6px; min-width:0;">
             <span style="font-size:12px; font-weight:700; color:${s.rank.text};">${s.questions} Soru • [${escapeHtml(s.rank.title)}]</span>
+            ${s.needs_question_input ? `<span style="font-size:10px; font-weight:800; color:#38bdf8; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3); padding:1px 6px; border-radius:4px;">✨ ÇÖZÜLEN SORUYU GİR</span>` : ''}
             <button class="btn" style="height:22px; padding:0 8px; font-size:10.5px;" onclick="subjectRankExpanded['${s.id}']=!subjectRankExpanded['${s.id}']; lastStageSig=''; pollState();">
               Rütbeler ${exp ? '▴' : '▾'}
             </button>
           </div>
           <div style="display:flex; align-items:center; gap:5px;">
-            <input id="q-inp-${s.id}" type="text" class="q-input" placeholder="+ Soru" onkeydown="if(event.key==='Enter') submitQuestions('${s.id}')">
+            <input id="q-inp-${s.id}" type="text" class="q-input" style="${s.needs_question_input ? 'border-color:#38bdf8; box-shadow:0 0 8px rgba(56,189,248,0.4);' : ''}" placeholder="${s.needs_question_input ? 'Kaç Soru?' : '+ Soru'}" onkeydown="if(event.key==='Enter') submitQuestions('${s.id}')">
             <button class="btn btn-primary" style="height:28px; padding:0 10px; font-size:11px;" onclick="submitQuestions('${s.id}')">Ekle</button>
             <button class="btn" style="height:28px; padding:0 9px; font-size:11px;" onclick="submitZeroQuestions('${s.id}')">Soru Çözmedim</button>
           </div>
@@ -1935,6 +2084,9 @@ function openModal(id) {
   document.getElementById(id).classList.add("open");
 }
 function closeModal(id) {
+  if (id === "dailyGoalModal" && isDailyGoalMandatory) {
+    return;
+  }
   document.getElementById(id).classList.remove("open");
 }
 
@@ -1971,6 +2123,73 @@ async function toggleVideoTrigger() {
 }
 
 let currentBreakModalData = null;
+
+let currentDailyGoalData = null;
+let isDailyGoalMandatory = false;
+
+function isDailyGoalModalOpen() {
+  const m = document.getElementById("dailyGoalModal");
+  return m && m.classList.contains("open");
+}
+
+async function openDailyGoalModal(mandatory = false) {
+  isDailyGoalMandatory = mandatory;
+  const data = await callApi("get_daily_goal_data");
+  if (!data) return;
+  currentDailyGoalData = data;
+
+  const rec = data.recommendation || {};
+  document.getElementById("dailyGoalPrevCount").textContent = `${rec.q_prev || 0} Soru`;
+  document.getElementById("dailyGoalYesterdayCount").textContent = `${rec.q_yesterday || 0} Soru`;
+  document.getElementById("dailyGoalTagline").textContent = rec.tagline || "Bence -- soru çöz!";
+  document.getElementById("dailyGoalReason").textContent = rec.reason || "";
+  
+  const initialVal = (data.goal > 0) ? data.goal : (rec.recommended_goal || 30);
+  document.getElementById("dailyGoalInput").value = initialVal;
+
+  openModal("dailyGoalModal");
+}
+
+function adjustDailyGoalInput(delta) {
+  const inp = document.getElementById("dailyGoalInput");
+  let val = parseInt(inp.value, 10) || 0;
+  val = Math.max(1, Math.min(1000, val + delta));
+  inp.value = val;
+}
+
+function applyRecommendedGoal() {
+  if (currentDailyGoalData && currentDailyGoalData.recommendation) {
+    document.getElementById("dailyGoalInput").value = currentDailyGoalData.recommendation.recommended_goal || 30;
+  }
+}
+
+async function onConfirmDailyGoalClicked() {
+  const inp = document.getElementById("dailyGoalInput");
+  const count = parseInt(inp.value, 10);
+  if (isNaN(count) || count < 1) {
+    setFeedback("Lütfen geçerli bir soru sayısı girin.", "var(--accent-rose)");
+    return;
+  }
+  const res = await callApi("set_daily_goal", count);
+  closeModal("dailyGoalModal");
+  isDailyGoalMandatory = false;
+  if (res) {
+    setFeedback(res.message, "var(--accent-emerald-text)");
+  }
+  lastStageSig = "";
+  pollState();
+}
+
+async function onSkipDailyGoalClicked() {
+  const res = await callApi("skip_daily_goal");
+  closeModal("dailyGoalModal");
+  isDailyGoalMandatory = false;
+  if (res) {
+    setFeedback(res.message, "var(--accent-amber)");
+  }
+  lastStageSig = "";
+  pollState();
+}
 
 async function openBreakSettingsModal() {
   const data = await callApi("get_break_settings_data");

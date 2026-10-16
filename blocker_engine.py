@@ -212,6 +212,11 @@ class BlockerEngine:
         self.subject_questions = {s["id"]: 0 for s in SUBJECT_DEFINITIONS}
         self.subject_last_session_status = {}
         self.daily_history = {}
+        self.daily_question_goal = 0
+        self.daily_question_goal_date = ""
+        self.daily_question_goal_status = ""
+        self.app_start_ts = time.time()
+        self._triggered_break_milestones = set()
         self.preferred_solution_subject = "otomatik"
         self.study_sources = [dict(s) for s in DEFAULT_STUDY_SOURCES]
         set_dynamic_study_sources(self.study_sources)
@@ -514,6 +519,14 @@ class BlockerEngine:
                                         "subjects": yt_subjs
                                     }
 
+                        # Günlük Soru Hedefi verilerini yükle
+                        try:
+                            self.daily_question_goal = max(0, int(st.get("daily_question_goal", 0)))
+                            self.daily_question_goal_date = str(st.get("daily_question_goal_date", ""))
+                            self.daily_question_goal_status = str(st.get("daily_question_goal_status", ""))
+                        except Exception:
+                            pass
+
                         # Bilgisayar kapatılıp yeniden açılmış mı kontrol et
                         # (Windows Hızlı Başlatma / Kapatma / Uyku durumu dahil: son kalp atışından beri > 5 dk geçtiyse
                         # veya boot_time değiştiyse veya --boot ile açıldıysa mola barajı sayacını sıfırla!)
@@ -715,6 +728,9 @@ class BlockerEngine:
                         "study_sources": self.study_sources,
                         "source_stats": self.source_stats,
                         "video_detection_enabled": self.video_detection_enabled,
+                        "daily_question_goal": getattr(self, "daily_question_goal", 0),
+                        "daily_question_goal_date": getattr(self, "daily_question_goal_date", ""),
+                        "daily_question_goal_status": getattr(self, "daily_question_goal_status", ""),
                     }
                 }
                 with open(STATE_FILE, "w", encoding="utf-8") as f:
@@ -1629,9 +1645,16 @@ class BlockerEngine:
             self.reward_break_item_id = item_id
             self.reward_break_related_ids = linked_ids
             self.reward_break_end_ts = time.time() + self.reward_break_duration_sec
+            if self.manual_study_active and self.manual_study_subject_id:
+                self.last_stopped_manual_subject_id = self.manual_study_subject_id
+                self.last_stopped_manual_ts = time.time()
+            self.manual_study_active = False
+            self.manual_study_subject_id = ""
+            self.is_study_counting = False
             self.study_watched_seconds = 0.0
             self.reward_available = False
             self.reward_popup_shown = False
+            self._triggered_break_milestones.clear()
             name = self.items[item_id]["name"]
             if linked_ids:
                 linked_names = ", ".join(self.items[lid]["name"] for lid in linked_ids if lid in self.items)
@@ -1649,6 +1672,7 @@ class BlockerEngine:
             self.study_watched_seconds = 0.0
             self.reward_available = False
             self.reward_popup_shown = False
+            self._triggered_break_milestones.clear()
             if self.pending_study_goal_seconds and self.pending_reward_break_minutes:
                 self.study_goal_seconds = self.pending_study_goal_seconds
                 self.reward_break_minutes = self.pending_reward_break_minutes
@@ -2163,12 +2187,25 @@ class BlockerEngine:
                     self.study_watched_seconds + dt
                 )
                 if self.study_watched_seconds >= self.study_goal_seconds:
-                    # Baraj geçildiği anda zaman sayımını ANINDA durdur (Kullanıcı çalışmayı bitirmedi, mola pop-up ile sadece zaman dursun)!
+                    # Baraj geçildiği anda zaman sayımını ve manuel sayacı ANINDA tamamen durdur!
                     self.reward_available = True
                     self.reward_popup_shown = False
                     self.is_study_counting = False
+                    
+                    # Kullanıcı talebi: Mola barajı dolduğunda manuel sayaç beklemede kalmaz, TAMAMEN durdurulur!
+                    if self.manual_study_active and self.manual_study_subject_id:
+                        self.last_stopped_manual_subject_id = self.manual_study_subject_id
+                        self.last_stopped_manual_ts = now
+                    self.manual_study_active = False
+                    self.manual_study_subject_id = ""
+                    self.current_study_video = ""
+                    self.current_study_subject_id = ""
+                    self._last_audio_ts = 0.0
+                    self._manual_pause_latched = True
+
                     goal_lbl = format_goal_short_tr(self.study_goal_seconds)
-                    self.add_log(f"🏆 {goal_lbl} ders çalışma hedefi tamamlandı! Zaman sayımı durduruldu, {self.reward_break_minutes} dk mola hakkı kazanıldı.")
+                    self.add_log(f"🏆 {goal_lbl} ders çalışma hedefi tamamlandı! Manuel çalışma durduruldu, {self.reward_break_minutes} dk mola hakkı kazanıldı.")
+                    self.save_state()
                     self._notify_change()
                 elif now - self._last_study_save_ts >= 2.0:
                     self._last_study_save_ts = now
@@ -2370,6 +2407,7 @@ class BlockerEngine:
         emergency_relocked = False
         tyt_just_unlocked = False
         pending_activated_msg = None
+        overlay_spawn_sec = None
 
         with self.lock:
             # 0) TYT'den 1 gün öncesine (18 Haziran 2027 Cuma 00:00) ulaşıldı mı?
@@ -2387,6 +2425,7 @@ class BlockerEngine:
 
             # 1) Ödül molası bitti mi? (Bittiyse doğrudan tekrar yasakla!)
             if self.reward_break_item_id and now >= self.reward_break_end_ts:
+                self._triggered_break_milestones.clear()
                 rb_id = self.reward_break_item_id
                 rb_rel = list(self.reward_break_related_ids)
                 relocked_break_mins = max(1, int(round(self.reward_break_duration_sec / 60.0)))
@@ -2413,6 +2452,30 @@ class BlockerEngine:
                     self.pending_study_goal_seconds = None
                     self.pending_reward_break_minutes = None
                     pending_activated_msg = f"🎯 Sıradaki Mola Barajı Devreye Girdi: Hedef {new_lbl} - Mola {p_brk} Dakika."
+            elif self.reward_break_item_id and now < self.reward_break_end_ts:
+                # Kalan Süre Discord HUD Overlay kontrolü
+                rem_sec = int(self.reward_break_end_ts - now)
+                tot_sec = int(self.reward_break_duration_sec)
+                tot_mins = int(round(tot_sec / 60))
+                # 30 dklık molada 15, 10, 5 ve 1 dk kala
+                # 20 dklık molada 10, 5 ve 1 dk kala
+                # 15 dklık molada 5 ve 1 dk kala
+                # 10 dklık molada 5 ve 1 dk kala
+                # 5 dklık molada 1 dk kala
+                if tot_mins >= 30:
+                    candidates = [900, 600, 300, 60]
+                elif tot_mins >= 20:
+                    candidates = [600, 300, 60]
+                elif tot_mins >= 10:
+                    candidates = [300, 60]
+                else:
+                    candidates = [60]
+
+                for m in candidates:
+                    if rem_sec <= m and rem_sec >= (m - 4) and m not in self._triggered_break_milestones:
+                        self._triggered_break_milestones.add(m)
+                        overlay_spawn_sec = rem_sec
+                        break
 
             # 2) 30 dakikalık Acil Durum süresi bitti mi? (Bittiyse tüm kilitleri geri yükle!)
             if self.emergency_active and now >= self.emergency_end_ts:
@@ -2452,6 +2515,9 @@ class BlockerEngine:
             self.sync_hosts_file()
             self.enforce_processes_once()
             self.enforce_browser_tabs_once(force_all_windows=True)
+
+        if overlay_spawn_sec is not None:
+            self._spawn_break_overlay(overlay_spawn_sec)
 
         if changed:
             self._notify_change()
@@ -2643,6 +2709,160 @@ class BlockerEngine:
                 continue
 
         return sorted(apps.values(), key=lambda x: (x["source"] != "Görev Çubuğu", x["display_name"].lower()))
+
+    def _spawn_break_overlay(self, rem_sec: int):
+        """Mola bitimine kalan süreyi tam ekran oyun/uygulama üstünde Discord tarzı yüzen HUD ile gösterir."""
+        try:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            script_path = os.path.join(base_dir, "break_overlay.py")
+            if not os.path.exists(script_path):
+                return
+
+            py_exe = sys.executable
+            if py_exe.lower().endswith("python.exe"):
+                candidate_w = os.path.join(os.path.dirname(py_exe), "pythonw.exe")
+                if os.path.exists(candidate_w):
+                    py_exe = candidate_w
+
+            CREATE_NO_WINDOW = 0x08000000
+            subprocess.Popen(
+                [py_exe, script_path, str(int(rem_sec))],
+                cwd=base_dir,
+                creationflags=CREATE_NO_WINDOW,
+                close_fds=True,
+            )
+        except Exception as e:
+            self.add_log(f"⚠️ Mola HUD Overlay hatası: {e}")
+
+    def get_daily_goal_recommendation(self) -> dict:
+        """
+        Kullanıcının geçen gün (D-2) ve dün (D-1) çözdüğü soru sayılarına göre
+        teşvik edici günlük hedef soru sayısını ve gerekçesini hesaplar:
+        1) Geçen gün ve dün < 20 ise: İki sayı çarpılır (örn: 4 ve 8 -> 32 soru).
+        2) Sayılardan biri veya ikisi 20..50 arasındaysa: (2 * Q1) + (2 * Q2).
+        3) Büyük sayılarda (en az biri > 50, örn: 150 ve 400): Toplama yapılır (Q1 + Q2 -> 550 soru).
+        """
+        now_dt = datetime.now()
+        yesterday_key = (now_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+        prev_key = (now_dt - timedelta(days=2)).strftime("%Y-%m-%d")
+
+        q_yesterday = 0
+        q_prev = 0
+
+        with self.lock:
+            if yesterday_key in self.daily_history:
+                q_yesterday = sum(self.daily_history[yesterday_key].get("questions", {}).values())
+            if prev_key in self.daily_history:
+                q_prev = sum(self.daily_history[prev_key].get("questions", {}).values())
+            today_solved = sum(self.subject_questions.values())
+            current_goal = self.daily_question_goal if self.daily_question_goal_date == now_dt.strftime("%Y-%m-%d") else 0
+            current_status = self.daily_question_goal_status if self.daily_question_goal_date == now_dt.strftime("%Y-%m-%d") else ""
+
+        # Formül hesaplaması
+        # Durum 3: Büyük sayılar (Biri veya ikisi > 50)
+        if q_yesterday > 50 or q_prev > 50:
+            recommended = q_yesterday + q_prev
+            if recommended < 50:
+                recommended = max(50, (q_yesterday + q_prev) * 2)
+            formula_type = "sum"
+            reason = f"Büyük hedeflerde zirve temposu! Geçen gün {q_prev}, dün {q_yesterday} soru çözdün. Toplam gücünle bugünkü hedefin:"
+        # Durum 2: Sayılardan biri veya ikisi 20 ile 50 arasındaysa
+        elif (20 <= q_yesterday <= 50) or (20 <= q_prev <= 50):
+            recommended = (2 * q_prev) + (2 * q_yesterday)
+            formula_type = "double_sum"
+            reason = f"Harika bir ivme yakaladın! Geçen gün {q_prev}, dün {q_yesterday} soru çözdün. 2 Kat tempo formülüyle (2×{q_prev} + 2×{q_yesterday}) bugünkü hedefin:"
+        # Durum 1: İkisi de 20'den küçükse
+        else:
+            formula_type = "multiply"
+            if q_prev == 0 and q_yesterday == 0:
+                recommended = 30
+                reason = "Bugün yeni bir zafere başlangıç günü! Odaklanmanı ateşlemek için tavsiye edilen başlangıç hedefin:"
+            elif q_prev == 0 or q_yesterday == 0:
+                active_q = max(q_prev, q_yesterday)
+                recommended = max(25, active_q * 2)
+                reason = f"Dün {active_q} soru çözerek harika bir adım attın. İvmeyi katlamak için bugünkü hedefin:"
+            else:
+                recommended = q_prev * q_yesterday
+                if recommended < 20:
+                    recommended = max(20, (q_prev + q_yesterday) * 3)
+                reason = f"Geçen gün {q_prev}, dün {q_yesterday} soru çözdün. Çarpımsal ivme formülüyle ({q_prev} × {q_yesterday}) bugünkü hedefin:"
+
+        recommended = min(650, max(10, int(recommended)))
+
+        return {
+            "q_prev": int(q_prev),
+            "q_yesterday": int(q_yesterday),
+            "recommended_goal": int(recommended),
+            "tagline": f"Bence {recommended} soru çöz!",
+            "reason": reason,
+            "formula_type": formula_type,
+            "today_solved": int(today_solved),
+            "current_goal": int(current_goal),
+            "status": current_status,
+        }
+
+    def set_daily_question_goal(self, count: int) -> dict:
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        with self.lock:
+            self.daily_question_goal = max(1, int(count))
+            self.daily_question_goal_date = today_str
+            self.daily_question_goal_status = "accepted"
+            self.save_state()
+        self.add_log(f"🎯 Günlük soru hedefi {self.daily_question_goal} soru olarak belirlendi.")
+        self._notify_change()
+        return {"ok": True, "goal": self.daily_question_goal, "date": today_str, "message": f"Bugünkü hedef {self.daily_question_goal} soru olarak kaydedildi. Masadan zaferle kalk!"}
+
+    def skip_daily_question_goal(self) -> dict:
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        with self.lock:
+            self.daily_question_goal = 0
+            self.daily_question_goal_date = today_str
+            self.daily_question_goal_status = "skipped"
+            self.save_state()
+        self.add_log("⚡ Bugünkü soru hedefi pas geçildi.")
+        self._notify_change()
+        return {"ok": True, "status": "skipped", "date": today_str, "message": "Bugünlük soru hedefi pas geçildi. Serbest tempoda iyi çalışmalar!"}
+
+    def should_show_daily_goal_modal(self) -> bool:
+        """
+        Gece 00:00'dan sonra bilgisayar açıldığında ilk açılışta zorunlu soru hedefi modalını gösterir.
+        Kullanıcı onay veya ret vermeden kapatırsa tekrar açıldığında bekler.
+        00:00'dan önce açık olan gece seanslarında ise araya girmez.
+        """
+        now_dt = datetime.now()
+        today_str = now_dt.strftime("%Y-%m-%d")
+        midnight_ts = datetime(now_dt.year, now_dt.month, now_dt.day, 0, 0, 0).timestamp()
+
+        # 1. Gece yarısından önce açılmış ve halen devam eden oturumlarda araya girip odak bozma
+        if self.app_start_ts < midnight_ts:
+            return False
+
+        # 2. Bugün için kullanıcı zaten bir karar vermişse (onayladı veya pas geçti), tekrar sorma
+        if self.daily_question_goal_date == today_str and self.daily_question_goal_status in ("accepted", "skipped"):
+            return False
+
+        # 3. Henüz karar verilmemişse açılışta zorunlu göster
+        return True
+
+    def get_daily_goal_summary(self) -> dict:
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        rec = self.get_daily_goal_recommendation()
+        is_today = (self.daily_question_goal_date == today_str)
+        goal = self.daily_question_goal if is_today else 0
+        status = self.daily_question_goal_status if is_today else ""
+        today_solved = sum(self.subject_questions.values())
+        percent = min(100, int(round((today_solved / max(1, goal)) * 100))) if goal > 0 else 0
+        completed = bool(goal > 0 and today_solved >= goal)
+        return {
+            "should_prompt": self.should_show_daily_goal_modal(),
+            "today_str": today_str,
+            "goal": goal,
+            "status": status,
+            "today_solved": today_solved,
+            "percent": percent,
+            "completed": completed,
+            "recommendation": rec,
+        }
 
     def shutdown(self):
         self._running = False

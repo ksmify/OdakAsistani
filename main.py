@@ -586,6 +586,8 @@ class OdakBridgeApi:
             },
             "AutoOpenRewardPopup": auto_open_reward,
             "reward_ready": bool(reward_ready),
+            "daily_goal": self._engine.get_daily_goal_summary(),
+            "daily_goal_should_prompt": bool(self._engine.should_show_daily_goal_modal()),
             "items": None,
             "stats": None,
             "sources": None,
@@ -722,6 +724,7 @@ class OdakBridgeApi:
                 "share_ratio": min(1.0, s_sec / max_s) if s_sec > 0 else 0.0,
                 "is_active": is_man_here or is_vid_here,
                 "is_manual_active": is_man_here,
+                "needs_question_input": bool(self._engine.last_stopped_manual_subject_id == sid),
                 "status_text": st_txt,
                 "status_color": st_col,
                 "rank": s_rank,
@@ -832,6 +835,9 @@ class OdakBridgeApi:
         prev_rank = get_question_rank_tier(prev_q, subject_id=subject_id, period_key=period_key)
 
         new_total = self._engine.add_solved_questions(subject_id, count)
+        with self._engine.lock:
+            if self._engine.last_stopped_manual_subject_id == subject_id:
+                self._engine.last_stopped_manual_subject_id = ""
         _, new_subj_q = self._engine.get_stats_for_period(period_key)
         new_q = int(new_subj_q.get(subject_id, 0))
         new_rank = get_question_rank_tier(new_q, subject_id=subject_id, period_key=period_key)
@@ -927,6 +933,19 @@ class OdakBridgeApi:
             goal_lbl = format_goal_short_tr(res.get("new_goal_sec", goal_sec))
             brk_min = res.get("break_minutes", clamped_break)
             return {"ok": True, "queued": False, "message": f"Mola Barajı güncellendi: Hedef {goal_lbl}, Mola {brk_min} Dakika."}
+
+    def get_daily_goal_data(self) -> dict:
+        return self._engine.get_daily_goal_summary()
+
+    def set_daily_goal(self, goal_count: int) -> dict:
+        try:
+            val = int(goal_count)
+        except Exception:
+            val = 30
+        return self._engine.set_daily_question_goal(val)
+
+    def skip_daily_goal(self) -> dict:
+        return self._engine.skip_daily_question_goal()
 
     def get_lock_modal_data(self) -> dict:
         cd = self._engine.get_tyt_countdown()
