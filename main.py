@@ -191,7 +191,7 @@ SUBJECT_SPECIFIC_RANK_TITLES = {
         "VII • Trigonometri Ustası",
         "VIII • Limit Fatihi",
         "IX • Türev Canavarı",
-        "XI • İntegral Dâhisi",
+        "X • İntegral Dâhisi",
         "XI • Analiz Üstadı",
         "XII • Sayılar Teoricisi",
         "XIII • Gauss'un Mirasçısı",
@@ -358,23 +358,30 @@ def get_question_rank_tier(question_count: int, subject_id: str = "global", peri
 
     title = title_list[tier_index] if tier_index < len(title_list) else title_list[-1]
     border_c, text_c, pill_bg, card_bg, row_bg = RANK_TIER_VISUALS[tier_index]
+    min_th = thresholds[tier_index]
 
     if tier_index < len(thresholds) - 1:
         next_th = thresholds[tier_index + 1]
         next_title = title_list[tier_index + 1]
         rem = max(0, next_th - q)
+        span = max(1, next_th - min_th)
+        tier_progress = min(1.0, max(0.0, (q - min_th) / float(span)))
         next_info = f"Sonraki Rütbe: {next_title} ({next_th:,} Soru • {rem:,} kaldı)".replace(",", ".")
+        next_info_short = f"Hedef: {next_title} ({next_th:,} Soru • {rem:,} kaldı)".replace(",", ".")
+        next_info_compact = f"Hedef: {next_title} ({rem:,} soru kaldı)".replace(",", ".")
     else:
         max_th = thresholds[-1]
         next_th = None
+        tier_progress = 1.0
         next_info = f"🏆 MAKSİMUM RÜTBE ({max_th:,}+ SORU TAMAMLANDI!)".replace(",", ".")
-
-    min_th = thresholds[tier_index]
+        next_info_short = f"🏆 MAKSİMUM RÜTBE ({max_th:,}+ SORU TAMAMLANDI!)".replace(",", ".")
+        next_info_compact = "🏆 MAKSİMUM RÜTBE TAMAMLANDI!"
 
     return {
         "tier_index": tier_index,
         "min_q": min_th,
         "next_q": next_th,
+        "tier_progress": tier_progress,
         "title": title,
         "border": border_c,
         "text": text_c,
@@ -382,6 +389,8 @@ def get_question_rank_tier(question_count: int, subject_id: str = "global", peri
         "card_bg": card_bg,
         "row_bg": row_bg,
         "next_info": next_info,
+        "next_info_short": next_info_short,
+        "next_info_compact": next_info_compact,
     }
 
 
@@ -1220,7 +1229,17 @@ class OdakAsistaniApp(ctk.CTk):
             text_color=TEXT_PRIMARY,
             anchor="w"
         )
-        self._total_study_lbl.pack(fill="x", padx=18, pady=(0, 2))
+        self._total_study_lbl.pack(fill="x", padx=18, pady=(0, 4))
+
+        self._bento_time_bar = ctk.CTkProgressBar(
+            bento_time,
+            height=5,
+            fg_color=BG_INPUT,
+            progress_color=ACCENT_CYAN,
+            corner_radius=3
+        )
+        self._bento_time_bar.pack(fill="x", padx=18, pady=(2, 6))
+        self._bento_time_bar.set(0.0)
 
         self._bento_time_sub = ctk.CTkLabel(
             bento_time,
@@ -1229,7 +1248,7 @@ class OdakAsistaniApp(ctk.CTk):
             text_color=TEXT_MUTED,
             anchor="w"
         )
-        self._bento_time_sub.pack(fill="x", padx=18, pady=(0, 14))
+        self._bento_time_sub.pack(fill="x", padx=18, pady=(0, 12))
 
         # Bento 2: Toplam Çözülen Soru & Rütbe (Geniş Sağ Hero Kartı)
         self._bento_q_frame = ctk.CTkFrame(
@@ -1253,7 +1272,7 @@ class OdakAsistaniApp(ctk.CTk):
 
         # Bento 2 Orta Satır: Sol tarafta dev sayaç, Sağ tarafta sabit genişlikli Rütbe Sıralaması Butonu
         bento_q_mid_row = ctk.CTkFrame(self._bento_q_frame, fg_color="transparent")
-        bento_q_mid_row.pack(fill="x", padx=18, pady=(0, 2))
+        bento_q_mid_row.pack(fill="x", padx=18, pady=(0, 4))
 
         # Sağdaki buton önce pack edilir (side="right") böylece pencere daralsa bile ASLA küçülmez veya metni kesilmez!
         self._global_rank_ladder_btn = ctk.CTkButton(
@@ -1281,14 +1300,24 @@ class OdakAsistaniApp(ctk.CTk):
         )
         self._total_questions_lbl.pack(side="left")
 
+        self._bento_q_bar = ctk.CTkProgressBar(
+            self._bento_q_frame,
+            height=5,
+            fg_color=BG_INPUT,
+            progress_color=ACCENT_EMERALD,
+            corner_radius=3
+        )
+        self._bento_q_bar.pack(fill="x", padx=18, pady=(2, 6))
+        self._bento_q_bar.set(0.0)
+
         self._bento_q_sub = ctk.CTkLabel(
             self._bento_q_frame,
-            text="Hedef: 10 Soru (10 kaldı)",
+            text="Hedef: I • Kıvılcım Avcısı (1 kaldı)",
             font=self._font(12, "bold"),
             text_color=TEXT_MUTED,
             anchor="w"
         )
-        self._bento_q_sub.pack(fill="x", padx=18, pady=(0, 14))
+        self._bento_q_sub.pack(fill="x", padx=18, pady=(0, 12))
 
         # --------------------------------------------------------------
         # 2.5 GENEL RÜTBE SIRALAMASI AÇILIR KAPANIR PARÇACIK (KIRMIZI ÇİZGİ ALANI)
@@ -1419,7 +1448,7 @@ class OdakAsistaniApp(ctk.CTk):
             bar.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 8))
             bar.set(0.0)
 
-            # Alt Satır: Sisteme Gömülü Dev Çözülen Soru Sayacı + "Soru Çözmedim" + Kümülatif Ekleme + Rütbe Listesi Butonu
+            # Alt Satır: Sisteme Gömülü Çözülen Soru Sayacı + Hedef Rütbe + Kümülatif Ekleme + Rütbe Listesi Butonu
             q_row = ctk.CTkFrame(
                 card,
                 fg_color=BG_INPUT,
@@ -1430,7 +1459,7 @@ class OdakAsistaniApp(ctk.CTk):
             q_row.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 10))
             q_row.grid_columnconfigure(1, weight=1)
 
-            # Sol: Büyük Vurgulu Çözülen Soru Kutusu
+            # Sol: Vurgulu Çözülen Soru Kutusu
             q_big_pill = ctk.CTkFrame(
                 q_row,
                 fg_color=BG_SURFACE,
@@ -1438,17 +1467,17 @@ class OdakAsistaniApp(ctk.CTk):
                 border_width=1,
                 corner_radius=9
             )
-            q_big_pill.grid(row=0, column=0, sticky="w", padx=(10, 10), pady=7)
+            q_big_pill.grid(row=0, column=0, sticky="w", padx=(8, 8), pady=7)
 
             q_big_num_lbl = ctk.CTkLabel(
                 q_big_pill,
                 text="0 SORU ÇÖZÜLDÜ",
-                font=self._font(15, "bold"),
+                font=self._font(13, "bold"),
                 text_color=TEXT_SECONDARY
             )
-            q_big_num_lbl.pack(padx=12, pady=4)
+            q_big_num_lbl.pack(padx=10, pady=4)
 
-            # Orta: Tek Satır Hedef & Durum Bilgisi (İkinci bir etiket olmadığı için ASLA çakışmaz)
+            # Orta: Tek Satır Hedef & Durum Bilgisi (Kompakt ve net format — asla kesilmez)
             q_lbl = ctk.CTkLabel(
                 q_row,
                 text="",
@@ -1456,12 +1485,12 @@ class OdakAsistaniApp(ctk.CTk):
                 text_color=TEXT_SECONDARY,
                 anchor="w"
             )
-            q_lbl.grid(row=0, column=1, sticky="w", padx=(2, 10), pady=7)
+            q_lbl.grid(row=0, column=1, sticky="ew", padx=(2, 8), pady=7)
 
             q_entry = ctk.CTkEntry(
                 q_row,
                 placeholder_text="Soru sayısı",
-                width=96,
+                width=88,
                 height=30,
                 font=self._font(12, "bold"),
                 fg_color=BG_SURFACE,
@@ -1472,7 +1501,7 @@ class OdakAsistaniApp(ctk.CTk):
                 corner_radius=8,
                 justify="center"
             )
-            q_entry.grid(row=0, column=2, sticky="e", padx=(0, 6), pady=7)
+            q_entry.grid(row=0, column=2, sticky="e", padx=(0, 5), pady=7)
             q_entry.bind(
                 "<Return>",
                 lambda _e, s_id=sid, ent=q_entry: self._on_add_questions_submitted(s_id, ent)
@@ -1481,18 +1510,18 @@ class OdakAsistaniApp(ctk.CTk):
             add_q_btn = ctk.CTkButton(
                 q_row,
                 text="+ Üzerine Ekle",
-                font=self._font(12, "bold"),
+                font=self._font(11, "bold"),
                 fg_color="#27272a",
                 hover_color="#3f3f46",
                 text_color=TEXT_PRIMARY,
                 border_color="#3f3f46",
                 border_width=1,
-                width=114,
+                width=104,
                 height=30,
                 corner_radius=8,
                 command=lambda s_id=sid, ent=q_entry: self._on_add_questions_submitted(s_id, ent)
             )
-            add_q_btn.grid(row=0, column=3, sticky="e", padx=(0, 6), pady=7)
+            add_q_btn.grid(row=0, column=3, sticky="e", padx=(0, 5), pady=7)
 
             no_q_btn = ctk.CTkButton(
                 q_row,
@@ -1501,12 +1530,12 @@ class OdakAsistaniApp(ctk.CTk):
                 fg_color=BG_ELEVATED,
                 hover_color=BG_ELEVATED_HOVER,
                 text_color=TEXT_SECONDARY,
-                width=108,
+                width=98,
                 height=30,
                 corner_radius=8,
                 command=lambda s_id=sid, ent=q_entry: self._on_no_questions_clicked(s_id, ent)
             )
-            no_q_btn.grid(row=0, column=4, sticky="e", padx=(0, 6), pady=7)
+            no_q_btn.grid(row=0, column=4, sticky="e", padx=(0, 5), pady=7)
 
             # Her Derse Özel Rütbe Sıralamasını Göster / Kapat Butonu
             ladder_btn = ctk.CTkButton(
@@ -1516,14 +1545,14 @@ class OdakAsistaniApp(ctk.CTk):
                 fg_color=BG_ELEVATED,
                 hover_color=BG_ELEVATED_HOVER,
                 text_color=ACCENT_CYAN,
-                width=90,
+                width=84,
                 height=30,
                 corner_radius=8,
                 border_color=BORDER_DEFAULT,
                 border_width=1,
                 command=lambda s_id=sid: self._on_toggle_subject_rank_ladder(s_id)
             )
-            ladder_btn.grid(row=0, column=5, sticky="e", padx=(0, 10), pady=7)
+            ladder_btn.grid(row=0, column=5, sticky="e", padx=(0, 8), pady=7)
 
             # Kartın Altındaki Açılır Kapanır Rütbe Sıralama Gövdesi (Row 3)
             ladder_body = ctk.CTkFrame(card, fg_color="transparent")
@@ -1547,7 +1576,6 @@ class OdakAsistaniApp(ctk.CTk):
                 "no_q_btn": no_q_btn,
                 "ladder_btn": ladder_btn,
                 "ladder_body": ladder_body,
-                "color": s_color,
                 "last_state_sig": None,
             }
 
@@ -1570,6 +1598,7 @@ class OdakAsistaniApp(ctk.CTk):
             just_stopped_subj = self.engine.last_stopped_manual_subject_id
             just_stopped_ts = self.engine.last_stopped_manual_ts
             last_session_map = dict(self.engine.subject_last_session_status)
+            daily_goal_sec = max(1800, int(getattr(self.engine, "study_goal_seconds", 7200)))
 
         # Periyot butonlarının stilini güncelle
         for p_label, p_btn in self._period_btn_refs.items():
@@ -1584,20 +1613,31 @@ class OdakAsistaniApp(ctk.CTk):
         total_period_q = sum(subj_questions.values())
         total_all_q = sum(all_questions.values())
 
-        bento_sig = (period_key, int(total_period_sec), int(total_all_sec), total_period_q, total_all_q)
+        bento_sig = (period_key, int(total_period_sec), int(total_all_sec), total_period_q, total_all_q, daily_goal_sec)
         if self._last_bento_header_sig != bento_sig:
             self._last_bento_header_sig = bento_sig
             p_upper = self.current_stats_period_label.upper()
             self._bento_time_title.configure(text=f"TOPLAM ÇALIŞMA SÜRESİ  •  {p_upper}")
             self._total_study_lbl.configure(text=format_duration_tr(total_period_sec))
+
+            period_mult = {"today": 1, "week": 7, "month": 28, "all": 100}.get(period_key, 1)
+            time_target_sec = max(1, daily_goal_sec * period_mult)
+            self._bento_time_bar.set(min(1.0, max(0.0, total_period_sec / float(time_target_sec))))
+
             if period_key == "all":
                 self._bento_time_sub.configure(text="Tüm derslerin kalıcı birikimli toplamı")
             elif period_key == "today":
-                self._bento_time_sub.configure(text="Bugünkü çalışma süresi (Her gece 00:00'da sıfırlanır)")
+                self._bento_time_sub.configure(
+                    text=f"Bugünkü çalışma  •  Tüm Zamanlar: {format_duration_tr(total_all_sec)}"
+                )
             elif period_key == "week":
-                self._bento_time_sub.configure(text="Son 7 günün toplamı (Kayan 7 günlük pencere)")
+                self._bento_time_sub.configure(
+                    text=f"Son 7 gün toplamı  •  Tüm Zamanlar: {format_duration_tr(total_all_sec)}"
+                )
             elif period_key == "month":
-                self._bento_time_sub.configure(text="Son 31 günün toplamı (Kayan 31 günlük pencere)")
+                self._bento_time_sub.configure(
+                    text=f"Son 31 gün toplamı  •  Tüm Zamanlar: {format_duration_tr(total_all_sec)}"
+                )
             else:
                 self._bento_time_sub.configure(text=f"Tüm zamanlar toplamı: {format_duration_tr(total_all_sec)}")
 
@@ -1615,6 +1655,11 @@ class OdakAsistaniApp(ctk.CTk):
                 text=f"{total_period_q:,} SORU".replace(",", "."),
                 text_color=global_rank["text"] if total_period_q > 0 else ACCENT_EMERALD_TEXT
             )
+            self._bento_q_bar.configure(
+                progress_color=global_rank["text"] if total_period_q > 0 else ACCENT_EMERALD
+            )
+            self._bento_q_bar.set(global_rank["tier_progress"])
+
             if total_period_q > 0:
                 self._bento_q_frame.configure(
                     fg_color=global_rank["card_bg"],
@@ -1626,28 +1671,13 @@ class OdakAsistaniApp(ctk.CTk):
 
             if period_key == "all":
                 self._bento_q_sub.configure(
-                    text=global_rank["next_info"],
+                    text=global_rank["next_info_short"],
                     text_color=global_rank["text"] if total_all_q > 0 else TEXT_MUTED
-                )
-            elif period_key == "today":
-                self._bento_q_sub.configure(
-                    text=f"{global_rank['next_info']}   •   Tüm Zamanlar: {total_all_q:,} Soru".replace(",", "."),
-                    text_color=global_rank["text"] if total_period_q > 0 else TEXT_MUTED
-                )
-            elif period_key == "week":
-                self._bento_q_sub.configure(
-                    text=f"{global_rank['next_info']}   •   Tüm Zamanlar: {total_all_q:,} Soru".replace(",", "."),
-                    text_color=global_rank["text"] if total_period_q > 0 else TEXT_MUTED
-                )
-            elif period_key == "month":
-                self._bento_q_sub.configure(
-                    text=f"{global_rank['next_info']}   •   Tüm Zamanlar: {total_all_q:,} Soru".replace(",", "."),
-                    text_color=global_rank["text"] if total_period_q > 0 else TEXT_MUTED
                 )
             else:
                 self._bento_q_sub.configure(
-                    text=f"Genel Toplam: {total_all_q:,} Soru   •   {global_rank['next_info']}".replace(",", "."),
-                    text_color=global_rank["text"] if total_all_q > 0 else TEXT_MUTED
+                    text=f"{global_rank['next_info_compact']}   •   Toplam: {total_all_q:,} Soru".replace(",", "."),
+                    text_color=global_rank["text"] if total_period_q > 0 else TEXT_MUTED
                 )
 
         now_ts = time.time()
@@ -1690,16 +1720,16 @@ class OdakAsistaniApp(ctk.CTk):
                 header_q_str = f"★ {rank_info['title']}  •  0 SORU"
 
             if is_just_stopped:
-                detail_str = "Çalışma tamamlandı  •  Çözdüğün soru sayısını sağdaki kutuya yaz:"
+                detail_str = "Çalışma tamamlandı • Çözdüğün soru sayısını sağa gir →"
             else:
-                extra_parts = [rank_info["next_info"]]
+                extra_parts = [rank_info["next_info_compact"]]
                 if period_key != "all" and q_all_cnt != q_cnt:
-                    extra_parts.append(f"Tüm Zamanlar: {q_all_cnt:,} Soru".replace(",", "."))
-                if last_note == "no_questions":
-                    extra_parts.append("Son: Konu (0 soru)")
+                    extra_parts.append(f"Toplam: {q_all_cnt:,}".replace(",", "."))
+                elif last_note == "no_questions":
+                    extra_parts.append("Son: Konu")
                 elif last_note.startswith("+"):
-                    extra_parts.append(f"Son: {last_note} Soru")
-                detail_str = "   •   ".join(extra_parts)
+                    extra_parts.append(f"Son: {last_note}")
+                detail_str = "  •  ".join(extra_parts)
 
             # Yalnızca kartın görsel durumu değiştiyse renk/buton özelliklerini güncelle (Sıfır titreme)
             state_sig = (period_key, is_running, is_just_stopped, big_num_str, header_q_str, detail_str, rank_info["tier_index"], last_note)
@@ -1814,7 +1844,7 @@ class OdakAsistaniApp(ctk.CTk):
                         border_color=BORDER_SUBTLE,
                         border_width=1
                     )
-                    refs["q_lbl"].configure(text_color=TEXT_SECONDARY)
+                    refs["q_lbl"].configure(text_color=rank_info["text"] if q_cnt > 0 else TEXT_SECONDARY)
                     refs["q_entry"].configure(border_color=BORDER_DEFAULT)
 
         if focus_stopped_entry and entry_to_focus is not None:
@@ -1927,15 +1957,7 @@ class OdakAsistaniApp(ctk.CTk):
                 font=self._font(12, "bold"),
                 text_color=text_c,
                 anchor="w"
-            ).pack(side="left")
-
-            ctk.CTkLabel(
-                top_row,
-                text=f"{th:,} Soru".replace(",", "."),
-                font=self._font(11, "bold"),
-                text_color=text_c if is_unlocked else TEXT_MUTED,
-                anchor="e"
-            ).pack(side="right")
+            ).pack(side="left", fill="x", expand=True)
 
             bot_row = ctk.CTkFrame(cell, fg_color="transparent")
             bot_row.pack(fill="x", padx=10, pady=(2, 8))
@@ -1947,6 +1969,14 @@ class OdakAsistaniApp(ctk.CTk):
                 text_color=badge_color,
                 anchor="w"
             ).pack(side="left")
+
+            ctk.CTkLabel(
+                bot_row,
+                text=f"{th:,} Soru".replace(",", "."),
+                font=self._font(10, "bold"),
+                text_color=text_c if is_unlocked else TEXT_MUTED,
+                anchor="e"
+            ).pack(side="right")
 
     def _on_toggle_subject_rank_ladder(self, subject_id: str):
         """İlgili ders kartının altındaki özel rütbe sıralamasını açar veya kapatır."""
@@ -2068,15 +2098,7 @@ class OdakAsistaniApp(ctk.CTk):
                 font=self._font(11, "bold"),
                 text_color=text_c,
                 anchor="w"
-            ).pack(side="left")
-
-            ctk.CTkLabel(
-                t_row,
-                text=f"{th:,}".replace(",", "."),
-                font=self._font(11, "bold"),
-                text_color=text_c if is_unlocked else TEXT_MUTED,
-                anchor="e"
-            ).pack(side="right")
+            ).pack(side="left", fill="x", expand=True)
 
             b_row = ctk.CTkFrame(box, fg_color="transparent")
             b_row.pack(fill="x", padx=8, pady=(1, 6))
@@ -2089,6 +2111,22 @@ class OdakAsistaniApp(ctk.CTk):
                 anchor="w"
             ).pack(side="left")
 
+            ctk.CTkLabel(
+                b_row,
+                text=f"{th:,} Soru".replace(",", "."),
+                font=self._font(10, "bold"),
+                text_color=text_c if is_unlocked else TEXT_MUTED,
+                anchor="e"
+            ).pack(side="right")
+
+    def _refresh_open_rank_ladders(self):
+        """Açık olan genel veya ders bazlı rütbe sıralaması listelerini anında günceller."""
+        if getattr(self, "_global_rank_ladder_expanded", False):
+            self._render_global_rank_ladder()
+        for sid, is_exp in list(self._subject_rank_ladders_expanded.items()):
+            if is_exp:
+                self._render_subject_rank_ladder(sid)
+
     def _on_period_changed(self, selected_label: str):
         if self.current_stats_period_label == selected_label:
             return
@@ -2098,6 +2136,7 @@ class OdakAsistaniApp(ctk.CTk):
             refs["last_time_sig"] = None
             refs["last_state_sig"] = None
         self._sync_subject_stats_view(focus_stopped_entry=False)
+        self._refresh_open_rank_ladders()
 
     def _on_add_questions_submitted(self, subject_id: str, entry_widget: ctk.CTkEntry):
         raw = entry_widget.get().strip()
@@ -2117,12 +2156,16 @@ class OdakAsistaniApp(ctk.CTk):
             return
 
         count = int(cleaned)
-        with self.engine.lock:
-            prev_total = int(self.engine.subject_questions.get(subject_id, 0))
-        prev_rank = get_question_rank_tier(prev_total)
+        period_key = PERIOD_LABELS.get(self.current_stats_period_label, "today")
+        _, prev_subj_q = self.engine.get_stats_for_period(period_key)
+        prev_period_q = int(prev_subj_q.get(subject_id, 0))
+        prev_rank = get_question_rank_tier(prev_period_q, subject_id=subject_id, period_key=period_key)
 
         new_total = self.engine.add_solved_questions(subject_id, count)
-        new_rank = get_question_rank_tier(new_total)
+        _, new_subj_q = self.engine.get_stats_for_period(period_key)
+        new_period_q = int(new_subj_q.get(subject_id, 0))
+        new_rank = get_question_rank_tier(new_period_q, subject_id=subject_id, period_key=period_key)
+
         self._ui_dirty = False
         subj_info = get_subject_info(subject_id)
         entry_widget.delete(0, "end")
@@ -2134,12 +2177,12 @@ class OdakAsistaniApp(ctk.CTk):
             )
         elif new_rank["tier_index"] > prev_rank["tier_index"]:
             self.feedback_label.configure(
-                text=f"🏆 RÜTBE ATLADIN! {subj_info['name']} dersi [{new_rank['title']}] rütbesine yükseldi! (+{count} soru • Toplam: {new_total} Soru • {new_rank['next_info']})",
+                text=f"🏆 RÜTBE ATLADIN! {subj_info['name']} dersi [{new_rank['title']}] rütbesine yükseldi! (+{count} soru • {self.current_stats_period_label}: {new_period_q} Soru • {new_rank['next_info_compact']})",
                 text_color=new_rank["text"]
             )
         else:
             self.feedback_label.configure(
-                text=f"✅ {subj_info['name']}: +{count} soru üzerine eklendi! Toplam: {new_total} Soru ({new_rank['title']} • {new_rank['next_info']}).",
+                text=f"✅ {subj_info['name']}: +{count} soru eklendi! {self.current_stats_period_label}: {new_period_q} Soru ({new_rank['title']} • {new_rank['next_info_compact']}).",
                 text_color=new_rank["text"]
             )
         # Kartın ve soru satırının eski tertemiz haline derhal dönmesi için önbellek imzalarını sıfırla
@@ -2148,6 +2191,7 @@ class OdakAsistaniApp(ctk.CTk):
             refs["last_time_sig"] = None
         self._last_bento_header_sig = None
         self._sync_subject_stats_view(focus_stopped_entry=False)
+        self._refresh_open_rank_ladders()
 
     def _on_no_questions_clicked(self, subject_id: str, entry_widget: ctk.CTkEntry):
         """Kullanıcı 'Soru Çözmedim' butonuna bastığında 0 soru (konu çalışması) olarak kaydeder."""
@@ -2164,6 +2208,7 @@ class OdakAsistaniApp(ctk.CTk):
             refs["last_time_sig"] = None
         self._last_bento_header_sig = None
         self._sync_subject_stats_view(focus_stopped_entry=False)
+        self._refresh_open_rank_ladders()
 
     def _on_toggle_manual_study(self, subject_id: str):
         subj_info = get_subject_info(subject_id)
@@ -5194,13 +5239,18 @@ class OdakAsistaniApp(ctk.CTk):
         if not blocked:
             self.status_label.configure(text="● Her şey açık ve normal çalışıyor", text_color=ACCENT_EMERALD_TEXT)
         else:
-            short_names = []
-            for x in blocked[:2]:
-                clean_n = x["name"].split("(")[0].strip()
-                short_names.append(clean_n)
-            names = ", ".join(short_names)
-            if len(blocked) > 2:
-                names += f" +{len(blocked) - 2}"
+            first_name = blocked[0]["name"].split("(")[0].strip()
+            if len(first_name) > 16:
+                first_name = first_name[:15] + "…"
+            if len(blocked) == 1:
+                names = first_name
+            elif len(blocked) == 2:
+                second_name = blocked[1]["name"].split("(")[0].strip()
+                if len(second_name) > 12:
+                    second_name = second_name[:11] + "…"
+                names = f"{first_name}, {second_name}"
+            else:
+                names = f"{first_name} +{len(blocked) - 1}"
             self.status_label.configure(text=f"● {len(blocked)} öğe kilitli ({names})", text_color="#fb7185")
 
     def _tick(self):
@@ -5393,9 +5443,10 @@ class OdakAsistaniApp(ctk.CTk):
                         text_color=ACCENT_EMERALD_TEXT
                     )
                 elif vid_title:
+                    vid_disp = (vid_title[:54] + "…") if len(vid_title) > 55 else vid_title
                     if vid_title.startswith("🚫"):
                         self.study_video_label.configure(
-                            text=vid_title,
+                            text=vid_disp,
                             text_color=ACCENT_ROSE
                         )
                     else:
@@ -5403,12 +5454,12 @@ class OdakAsistaniApp(ctk.CTk):
                         subj_badge = f"[{subj_info['name']}] " if subj_info else ""
                         if counting:
                             self.study_video_label.configure(
-                                text=f"● Ders Oynatılıyor {subj_badge}: {vid_title}",
+                                text=f"● Ders Oynatılıyor {subj_badge}: {vid_disp}",
                                 text_color=ACCENT_EMERALD_TEXT
                             )
                         else:
                             self.study_video_label.configure(
-                                text=f"⏸ Video Duraklatıldı (Sayaç Beklemede): {vid_title}",
+                                text=f"⏸ Video Duraklatıldı (Sayaç Beklemede): {vid_disp}",
                                 text_color=ACCENT_AMBER
                             )
                 else:
