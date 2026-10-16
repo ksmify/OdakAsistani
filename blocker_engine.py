@@ -194,6 +194,8 @@ class BlockerEngine:
         self.study_goal_seconds = STUDY_GOAL_SECONDS
         self.reward_break_minutes = REWARD_BREAK_MINUTES
         self.reward_break_duration_sec = REWARD_BREAK_MINUTES * 60
+        self.pending_study_goal_seconds = None
+        self.pending_reward_break_minutes = None
         self.current_study_video = ""
         self.current_study_subject_id = ""
         self.is_study_counting = False
@@ -440,6 +442,30 @@ class BlockerEngine:
                         except Exception:
                             self.reward_break_duration_sec = self.reward_break_minutes * 60
 
+                        # Sıradaki mola barajı kuyruğunu yükle
+                        try:
+                            p_goal = st.get("pending_study_goal_seconds")
+                            if p_goal and int(p_goal) in ALLOWED_STUDY_GOAL_SECONDS:
+                                self.pending_study_goal_seconds = int(p_goal)
+                            else:
+                                self.pending_study_goal_seconds = None
+                        except Exception:
+                            self.pending_study_goal_seconds = None
+
+                        try:
+                            p_break = st.get("pending_reward_break_minutes")
+                            if p_break and int(p_break) in ALLOWED_REWARD_BREAK_MINUTES:
+                                if self.pending_study_goal_seconds:
+                                    self.pending_reward_break_minutes = clamp_break_minutes_for_goal(
+                                        self.pending_study_goal_seconds, int(p_break)
+                                    )
+                                else:
+                                    self.pending_reward_break_minutes = int(p_break)
+                            else:
+                                self.pending_reward_break_minutes = None
+                        except Exception:
+                            self.pending_reward_break_minutes = None
+
                         # Kaynak Siteler listesini yükle (yoksa varsayılan YouTube + 345 + Bilgi Sarmal ile başlat)
                         saved_sources = st.get("study_sources")
                         if isinstance(saved_sources, list) and len(saved_sources) > 0:
@@ -510,6 +536,12 @@ class BlockerEngine:
                             self.reward_popup_shown = False
                             self.manual_study_active = False
                             self.manual_study_subject_id = ""
+                            if self.pending_study_goal_seconds and self.pending_reward_break_minutes:
+                                self.study_goal_seconds = self.pending_study_goal_seconds
+                                self.reward_break_minutes = self.pending_reward_break_minutes
+                                self.reward_break_duration_sec = self.reward_break_minutes * 60
+                                self.pending_study_goal_seconds = None
+                                self.pending_reward_break_minutes = None
                         else:
                             self.study_watched_seconds = min(
                                 float(self.study_goal_seconds),
@@ -666,6 +698,8 @@ class BlockerEngine:
                         "study_goal_seconds": self.study_goal_seconds,
                         "reward_break_minutes": self.reward_break_minutes,
                         "reward_break_duration_sec": self.reward_break_duration_sec,
+                        "pending_study_goal_seconds": self.pending_study_goal_seconds,
+                        "pending_reward_break_minutes": self.pending_reward_break_minutes,
                         "study_watched_seconds": self.study_watched_seconds,
                         "reward_available": self.reward_available,
                         "reward_break_item_id": self.reward_break_item_id,
@@ -1449,11 +1483,13 @@ class BlockerEngine:
 
     def update_break_bar_settings(self, new_goal_seconds: int, new_break_minutes: int) -> dict:
         """
-        Mola barajı ders çalışma hedefini (40 DK / 45 DK / 1 SAAT / 2 SAAT / 3 SAAT) ve
-        ödül mola süresini (5 DK / 10 DK / 20 DK / 30 DK) günceller.
-        - Yeni hedefe geçildiğinde mevcut baraj ilerlemesini SIFIRLAMAZ;
-          eski sürenin yeni süreye oranına göre (örn. 3 Saat=180 dk -> 45 dk geçişinde 4'e bölerek)
-          adaletli ve orantısal olarak ölçekler!
+        Mola barajı ders çalışma hedefini ve mola süresini günceller veya sıraya alır.
+        - Disiplin Kuralı: Eğer öğrenci şu an ders çalışıyorsa (barajda ilerleme varsa),
+          mola seçimi bekliyorsa veya mola sürüyorsa, değişiklik hemen devreye girmez!
+          Böylece 44. dakikada hedefi 3 saate çekip haksız yere 30 dk mola alma suistimali engellenir.
+          Yeni hedef 'Sıradaki ders-mola aralığı' olarak sıraya alınır ve mevcut mola/ders döngüsü
+          bittikten sonra otomatik aktifleşir.
+        - Eğer öğrenci henüz yeni bir derse başlamadıysa (ilerleme 0 sn) doğrudan uygulanır.
         """
         new_goal = int(new_goal_seconds)
         new_break = int(new_break_minutes)
@@ -1464,33 +1500,76 @@ class BlockerEngine:
         new_break = clamp_break_minutes_for_goal(new_goal, new_break)
 
         with self.lock:
-            old_goal = int(max(1, self.study_goal_seconds))
-            old_watched = float(self.study_watched_seconds)
-            scale_factor = float(new_goal) / float(old_goal)
-            new_watched = min(float(new_goal), max(0.0, old_watched * scale_factor))
+            now = time.time()
+            is_in_break = bool(self.reward_break_item_id and now < self.reward_break_end_ts)
+            is_cycle_active = (self.study_watched_seconds > 0.0) or self.reward_available or is_in_break
 
+            # Eğer kullanıcı şu an aktif olan mevcut ayarın aynısını seçtiyse:
+            if new_goal == self.study_goal_seconds and new_break == self.reward_break_minutes:
+                # Varsa sıradaki kuyruğu temizle
+                self.pending_study_goal_seconds = None
+                self.pending_reward_break_minutes = None
+                self.save_state()
+                self._notify_change()
+                return {
+                    "queued": False,
+                    "new_goal_sec": new_goal,
+                    "break_minutes": new_break,
+                }
+
+            # Aktif bir çalışma veya mola döngüsü devam ediyorsa: SIRAYA AL!
+            if is_cycle_active:
+                self.pending_study_goal_seconds = new_goal
+                self.pending_reward_break_minutes = new_break
+                self.save_state()
+                pending_goal_lbl = format_goal_short_tr(new_goal)
+                cur_goal_lbl = format_goal_short_tr(self.study_goal_seconds)
+                self.add_log(
+                    f"⏳ Sıradaki Ders-Mola Aralığı Sıraya Alındı: {pending_goal_lbl} - {new_break} Dk. "
+                    f"(Mevcut {cur_goal_lbl} döngüsü tamamlandığında otomatik aktifleşecektir)."
+                )
+                self._notify_change()
+                return {
+                    "queued": True,
+                    "pending_goal_sec": new_goal,
+                    "pending_break_minutes": new_break,
+                    "cur_goal_sec": self.study_goal_seconds,
+                    "cur_break_minutes": self.reward_break_minutes,
+                }
+
+            # Aktif döngü yoksa (ilerleme 0, mola yok): Doğrudan uygula!
+            old_goal = int(max(1, self.study_goal_seconds))
             self.study_goal_seconds = new_goal
-            self.study_watched_seconds = new_watched
+            self.study_watched_seconds = 0.0
             self.reward_break_minutes = new_break
-            if not self.reward_break_item_id or time.time() >= self.reward_break_end_ts:
+            self.pending_study_goal_seconds = None
+            self.pending_reward_break_minutes = None
+            if not self.reward_break_item_id or now >= self.reward_break_end_ts:
                 self.reward_break_duration_sec = new_break * 60
 
             old_goal_lbl = format_goal_short_tr(old_goal)
             new_goal_lbl = format_goal_short_tr(new_goal)
 
+        self.save_state()
         self.add_log(
-            f"⚙️ Mola Barajı Güncellendi: Hedef {old_goal_lbl} → {new_goal_lbl} | Mola: {new_break} Dk "
-            f"(Baraj ilerlemesi adaletli ölçekle korundu)."
+            f"⚙️ Mola Barajı Güncellendi: Hedef {old_goal_lbl} → {new_goal_lbl} | Mola: {new_break} Dk."
         )
         self._notify_change()
         return {
+            "queued": False,
             "old_goal_sec": old_goal,
             "new_goal_sec": new_goal,
-            "old_watched_sec": old_watched,
-            "new_watched_sec": new_watched,
-            "scale_factor": scale_factor,
             "break_minutes": new_break,
         }
+
+    def cancel_pending_break_settings(self):
+        """Kullanıcının sıraya aldığı sıradaki mola barajı hedefini iptal eder."""
+        with self.lock:
+            self.pending_study_goal_seconds = None
+            self.pending_reward_break_minutes = None
+            self.save_state()
+        self.add_log("🗑️ Sıradaki ders-mola aralığı iptal edildi.")
+        self._notify_change()
 
     def toggle_video_detection(self) -> bool:
         """
@@ -1565,10 +1644,23 @@ class BlockerEngine:
 
     def dismiss_reward_without_break(self):
         """Kullanıcı mola kullanmadan çalışmaya devam etmek isterse sayacı sıfırlar."""
+        msg = None
         with self.lock:
             self.study_watched_seconds = 0.0
             self.reward_available = False
             self.reward_popup_shown = False
+            if self.pending_study_goal_seconds and self.pending_reward_break_minutes:
+                self.study_goal_seconds = self.pending_study_goal_seconds
+                self.reward_break_minutes = self.pending_reward_break_minutes
+                self.reward_break_duration_sec = self.reward_break_minutes * 60
+                p_goal_lbl = format_goal_short_tr(self.study_goal_seconds)
+                p_brk = self.reward_break_minutes
+                self.pending_study_goal_seconds = None
+                self.pending_reward_break_minutes = None
+                msg = f"🎯 Sıradaki Mola Barajı Devreye Girdi: Hedef {p_goal_lbl} - Mola {p_brk} Dakika."
+            self.save_state()
+        if msg:
+            self.add_log(msg)
         self._notify_change()
 
     def get_emergency_status(self) -> dict:
@@ -2277,6 +2369,7 @@ class BlockerEngine:
         relocked_break_mins = self.reward_break_minutes
         emergency_relocked = False
         tyt_just_unlocked = False
+        pending_activated_msg = None
 
         with self.lock:
             # 0) TYT'den 1 gün öncesine (18 Haziran 2027 Cuma 00:00) ulaşıldı mı?
@@ -2310,6 +2403,17 @@ class BlockerEngine:
                         self.items[rid]["until_ts"] = 0.0
                 changed = True
 
+                # Sıradaki mola barajı kuyruğu varsa devreye sok
+                if self.pending_study_goal_seconds and self.pending_reward_break_minutes:
+                    self.study_goal_seconds = self.pending_study_goal_seconds
+                    self.reward_break_minutes = self.pending_reward_break_minutes
+                    self.reward_break_duration_sec = self.reward_break_minutes * 60
+                    new_lbl = format_goal_short_tr(self.study_goal_seconds)
+                    p_brk = self.reward_break_minutes
+                    self.pending_study_goal_seconds = None
+                    self.pending_reward_break_minutes = None
+                    pending_activated_msg = f"🎯 Sıradaki Mola Barajı Devreye Girdi: Hedef {new_lbl} - Mola {p_brk} Dakika."
+
             # 2) 30 dakikalık Acil Durum süresi bitti mi? (Bittiyse tüm kilitleri geri yükle!)
             if self.emergency_active and now >= self.emergency_end_ts:
                 self.emergency_active = False
@@ -2338,6 +2442,10 @@ class BlockerEngine:
             self.sync_hosts_file()
             self.enforce_processes_once()
             self.enforce_browser_tabs_once(force_all_windows=True)
+
+        if pending_activated_msg:
+            self.add_log(pending_activated_msg)
+            self.save_state()
 
         if emergency_relocked:
             self.add_log("🔒 30 dakikalık Acil Durum süresi doldu! Tüm uygulama, oyun ve siteler anında kapatıldı ve tekrar kilitlendi.")

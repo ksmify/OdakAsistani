@@ -1074,7 +1074,27 @@
     <div style="display:flex; justify-content:space-between; align-items:center;">
       <div>
         <h2 style="font-size:17px; font-weight:700;">Mola Barajı Yapılandırması</h2>
-        <p style="color:var(--text-secondary); font-size:12px;">Hedef süreyi değiştirdiğinde baraj sıfırlanmaz; mevcut ilerlemen yeni süreye adaletli oranda aktarılır.</p>
+        <p id="breakSettingsHeaderSub" style="color:var(--text-secondary); font-size:12px;">Hedef ve mola aralığınızı yapılandırın.</p>
+      </div>
+    </div>
+
+    <!-- PENDING QUEUE BANNER -->
+    <div id="breakPendingQueueBanner" style="display:none; background:rgba(245, 158, 11, 0.08); border:1px solid rgba(245, 158, 11, 0.35); border-radius:12px; padding:12px 16px; justify-content:space-between; align-items:center; gap:12px;">
+      <div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#f59e0b; box-shadow:0 0 8px #f59e0b;"></span>
+          <span style="font-size:11px; font-weight:800; letter-spacing:0.8px; color:#f59e0b;">SIRADAKİ DERS-MOLA ARALIĞI</span>
+        </div>
+        <div id="breakPendingQueueText" style="font-size:13.5px; font-weight:700; color:#fef3c7; margin-top:3px;">
+          Sıradaki ders-mola aralığı 3 Saat - 30 Dakika
+        </div>
+        <div style="font-size:11px; color:#d97706; margin-top:2px;">
+          Mevcut ders ve mola döngünüz tamamlandığında otomatik olarak devreye girecektir.
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; flex-shrink:0;">
+        <button type="button" class="btn" style="height:32px; padding:0 12px; font-size:11.5px; border-color:rgba(245, 158, 11, 0.4); color:#fef3c7;" onclick="editPendingBreakSettings()">Düzenle</button>
+        <button type="button" class="btn" style="height:32px; padding:0 12px; font-size:11.5px; border-color:rgba(244, 63, 94, 0.4); color:#fda4af; background:rgba(244, 63, 94, 0.1);" onclick="cancelPendingBreakSettings()">İptal Et</button>
       </div>
     </div>
 
@@ -1095,7 +1115,7 @@
 
     <div style="display:grid; grid-template-columns:1fr 2fr; gap:10px;">
       <button class="btn" style="height:40px;" onclick="closeModal('breakSettingsModal')">Vazgeç</button>
-      <button class="btn btn-primary" style="height:40px;" onclick="saveBreakSettings()">Ayarları Kaydet ve Uygula</button>
+      <button id="saveBreakSettingsBtn" class="btn btn-primary" style="height:40px;" onclick="saveBreakSettings()">Ayarları Kaydet ve Uygula</button>
     </div>
   </div>
 </div>
@@ -1872,9 +1892,12 @@ async function toggleVideoTrigger() {
   pollState();
 }
 
+let currentBreakModalData = null;
+
 async function openBreakSettingsModal() {
   const data = await callApi("get_break_settings_data");
   if (!data) return;
+  currentBreakModalData = data;
   selectedGoalSec = data.cur_goal;
   selectedBreakMin = data.cur_break;
   renderBreakSettingsChoices(data);
@@ -1882,35 +1905,92 @@ async function openBreakSettingsModal() {
 }
 
 function renderBreakSettingsChoices(data) {
+  if (!data) return;
+  currentBreakModalData = data;
+
   const maxAllowed = (data.max_break_by_goal && data.max_break_by_goal[String(selectedGoalSec)]) || 30;
   if (selectedBreakMin > maxAllowed) {
     selectedBreakMin = maxAllowed;
   }
 
+  // Pending queue banner
+  const pBanner = document.getElementById("breakPendingQueueBanner");
+  if (data.has_pending) {
+    pBanner.style.display = "flex";
+    document.getElementById("breakPendingQueueText").textContent =
+      `Sıradaki ders-mola aralığı: ${data.pending_goal_str} - ${data.pending_break} Dakika`;
+  } else {
+    pBanner.style.display = "none";
+  }
+
+  // Goal options buttons
   const gRow = document.getElementById("goalOptionsRow");
   gRow.innerHTML = data.goal_options.map(o => `
-    <button class="btn ${o.seconds===selectedGoalSec?'btn-primary':''}" style="height:36px;" onclick="selectedGoalSec=${o.seconds}; renderBreakSettingsChoices(${JSON.stringify(data).replace(/"/g,'&quot;')})">${escapeHtml(o.label)}</button>
+    <button type="button" class="btn ${o.seconds===selectedGoalSec?'btn-primary':''}" style="height:36px;" onclick="selectedGoalSec=${o.seconds}; renderBreakSettingsChoices(currentBreakModalData)">${escapeHtml(o.label)}</button>
   `).join("");
 
+  // Break options buttons
   const bRow = document.getElementById("breakOptionsRow");
   bRow.innerHTML = data.break_options.map(o => {
     const isLocked = o.minutes > maxAllowed;
     if (isLocked) {
-      return `<button class="btn" style="height:36px; opacity:0.35; cursor:not-allowed; background:rgba(255,255,255,0.03);" disabled title="${Math.round(selectedGoalSec/60)} dk çalışma için en fazla ${maxAllowed} dk mola verilebilir (Disiplin Kuralı).">🔒 ${escapeHtml(o.label)}</button>`;
+      return `<button type="button" class="btn" style="height:36px; opacity:0.35; cursor:not-allowed; background:rgba(255,255,255,0.03);" disabled title="${Math.round(selectedGoalSec/60)} dk çalışma için en fazla ${maxAllowed} dk mola verilebilir (Disiplin Kuralı).">🔒 ${escapeHtml(o.label)}</button>`;
     }
-    return `<button class="btn ${o.minutes===selectedBreakMin?'btn-primary':''}" style="height:36px;" onclick="selectedBreakMin=${o.minutes}; renderBreakSettingsChoices(${JSON.stringify(data).replace(/"/g,'&quot;')})">${escapeHtml(o.label)}</button>`;
+    return `<button type="button" class="btn ${o.minutes===selectedBreakMin?'btn-primary':''}" style="height:36px;" onclick="selectedBreakMin=${o.minutes}; renderBreakSettingsChoices(currentBreakModalData)">${escapeHtml(o.label)}</button>`;
   }).join("");
 
-  const ratio = Math.min(1, Math.max(0, data.watched / Math.max(1, data.cur_goal)));
-  const pct = (ratio * 100).toFixed(1);
-  document.getElementById("scalePreviewTitle").textContent = `● Adaletli Oran & Dengeli Mola Kuralı`;
-  document.getElementById("scalePreviewDetail").textContent = `Seçili Hedef: ${Math.round(selectedGoalSec/60)} Dk (Maks. Mola: ${maxAllowed} Dk) • Seçili Ödül Molası: ${selectedBreakMin} Dakika • Baraj İlerleme Oranı (%${pct}) Korunur`;
+  // Subheader & save button behavior
+  const isPendingTarget = data.is_cycle_active && (selectedGoalSec !== data.cur_goal || selectedBreakMin !== data.cur_break);
+  const saveBtn = document.getElementById("saveBreakSettingsBtn");
+  const subHead = document.getElementById("breakSettingsHeaderSub");
+
+  if (data.is_cycle_active) {
+    subHead.textContent = "Aktif çalışma veya mola döngünüz devam ediyor. Değişiklikler mevcut döngü bittikten sonra sıradaki hedef olarak devreye girer.";
+    saveBtn.textContent = isPendingTarget ? "Sıradaki Hedef Olarak Sıraya Al" : "Mevcut Ayarları Koru";
+    document.getElementById("scalePreviewTitle").innerHTML = `<span style="color:#f59e0b;">⏳ Disiplin Kuralı & Sıradaki Hedef Kuyruğu</span>`;
+    document.getElementById("scalePreviewDetail").textContent =
+      `Mevcut aktif hedef: ${data.cur_goal_str || Math.round(data.cur_goal/60) + ' Dk'} (${data.cur_break} Dk Mola). ` +
+      (isPendingTarget
+        ? `Seçiminiz (${Math.round(selectedGoalSec/60)} Dk - ${selectedBreakMin} Dk Mola) mevcut mola bittikten sonra devreye girecektir.`
+        : `Mevcut hedefiniz korunuyor.`);
+  } else {
+    subHead.textContent = "Yeni çalışma oturumuna başlamadan önce hedef ve mola sürenizi doğrudan belirleyebilirsiniz.";
+    saveBtn.textContent = "Ayarları Kaydet ve Uygula";
+    document.getElementById("scalePreviewTitle").innerHTML = `<span style="color:var(--accent-emerald-text);">● Doğrudan Aktifleşecek</span>`;
+    document.getElementById("scalePreviewDetail").textContent =
+      `Seçili Hedef: ${Math.round(selectedGoalSec/60)} Dk (Maks. Mola: ${maxAllowed} Dk) • Seçili Ödül Molası: ${selectedBreakMin} Dakika`;
+  }
+}
+
+function editPendingBreakSettings() {
+  if (!currentBreakModalData || !currentBreakModalData.has_pending) return;
+  selectedGoalSec = currentBreakModalData.pending_goal;
+  selectedBreakMin = currentBreakModalData.pending_break;
+  renderBreakSettingsChoices(currentBreakModalData);
+  setFeedback("Sıradaki hedef ayarları seçim paneline yüklendi.", "var(--accent-amber)");
+}
+
+async function cancelPendingBreakSettings() {
+  const res = await callApi("cancel_pending_break_settings");
+  if (res) setFeedback(res.message, "var(--accent-emerald-text)");
+  const data = await callApi("get_break_settings_data");
+  if (data) {
+    currentBreakModalData = data;
+    selectedGoalSec = data.cur_goal;
+    selectedBreakMin = data.cur_break;
+    renderBreakSettingsChoices(data);
+  }
+  lastStageSig = "";
+  pollState();
 }
 
 async function saveBreakSettings() {
   closeModal("breakSettingsModal");
   const res = await callApi("save_break_settings", selectedGoalSec, selectedBreakMin);
-  if (res) setFeedback(res.message, "var(--accent-emerald-text)");
+  if (res) {
+    const color = res.queued ? "var(--accent-amber)" : "var(--accent-emerald-text)";
+    setFeedback(res.message, color);
+  }
   lastStageSig = "";
   pollState();
 }

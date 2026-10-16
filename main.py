@@ -498,6 +498,8 @@ class OdakBridgeApi:
             goal = int(self._engine.study_goal_seconds)
             break_mins = int(self._engine.reward_break_minutes)
             break_dur_sec = int(self._engine.reward_break_duration_sec)
+            p_goal = self._engine.pending_study_goal_seconds
+            p_break = self._engine.pending_reward_break_minutes
             vid_title = self._engine.current_study_video
             subj_id = self._engine.current_study_subject_id
             counting = self._engine.is_study_counting
@@ -512,17 +514,19 @@ class OdakBridgeApi:
         rem_break = max(0, int(rb_end - now)) if (rb_id and rb_end > now) else 0
         is_trig_on = bool(self._engine.video_detection_enabled)
 
+        p_str = f" • Sıradaki: {format_goal_short_tr(p_goal)} ({p_break} Dk)" if (p_goal and p_break) else ""
+
         if rb_id and rem_break > 0:
             bm, bs = divmod(rem_break, 60)
             b_name = self._engine.items.get(rb_id, {}).get("name", rb_id)
-            dock_time_text = f"{break_mins} Dk Ödül Molası: {bm:02d}:{bs:02d} kaldı"
+            dock_time_text = f"{break_mins} Dk Ödül Molası: {bm:02d}:{bs:02d} kaldı{p_str}"
             dock_video_text = f"'{b_name}' mola için açık — Süre bitince otomatik kilitlenecek"
             dock_video_color = "#34d399"
             dock_progress = rem_break / float(max(1, break_dur_sec))
         else:
             hrs, rem = divmod(watched, 3600)
             mins, secs = divmod(rem, 60)
-            dock_time_text = f"Mola Barajı: {hrs:02d}s {mins:02d}dk {secs:02d}sn / {format_goal_bar_target(goal)} • Mola: {break_mins} Dk"
+            dock_time_text = f"Mola Barajı: {hrs:02d}s {mins:02d}dk {secs:02d}sn / {format_goal_bar_target(goal)} • Mola: {break_mins} Dk{p_str}"
             dock_progress = min(1.0, watched / float(max(1, goal)))
 
             if reward_ready:
@@ -881,21 +885,48 @@ class OdakBridgeApi:
             cur_goal = int(self._engine.study_goal_seconds)
             cur_break = clamp_break_minutes_for_goal(cur_goal, int(self._engine.reward_break_minutes))
             watched = float(self._engine.study_watched_seconds)
+            now = time.time()
+            in_break = bool(self._engine.reward_break_item_id and now < self._engine.reward_break_end_ts)
+            is_cycle_active = (watched > 0.0) or bool(self._engine.reward_available) or in_break
+
+            p_goal = self._engine.pending_study_goal_seconds
+            p_break = self._engine.pending_reward_break_minutes
+            has_pending = bool(p_goal and p_break)
+
         return {
             "cur_goal": cur_goal,
             "cur_break": cur_break,
+            "cur_goal_str": format_goal_short_tr(cur_goal),
             "watched": watched,
+            "is_cycle_active": is_cycle_active,
+            "has_pending": has_pending,
+            "pending_goal": p_goal,
+            "pending_break": p_break,
+            "pending_goal_str": format_goal_short_tr(p_goal) if p_goal else "",
             "goal_options": STUDY_GOAL_OPTIONS,
             "break_options": REWARD_BREAK_OPTIONS,
             "max_break_by_goal": {str(k): v for k, v in MAX_BREAK_MINUTES_BY_GOAL.items()},
         }
 
+    def cancel_pending_break_settings(self) -> dict:
+        self._engine.cancel_pending_break_settings()
+        return {"ok": True, "message": "Sıradaki mola barajı hedefi iptal edildi."}
+
     def save_break_settings(self, goal_sec: int, break_min: int) -> dict:
         clamped_break = clamp_break_minutes_for_goal(int(goal_sec), int(break_min))
         res = self._engine.update_break_bar_settings(int(goal_sec), int(clamped_break))
-        goal_lbl = format_goal_short_tr(res.get("new_goal_sec", goal_sec))
-        brk_min = res.get("break_minutes", clamped_break)
-        return {"ok": True, "message": f"Mola Barajı güncellendi: Hedef {goal_lbl}, Mola {brk_min} Dakika."}
+        if res.get("queued", False):
+            goal_lbl = format_goal_short_tr(res.get("pending_goal_sec", goal_sec))
+            brk_min = res.get("pending_break_minutes", clamped_break)
+            return {
+                "ok": True,
+                "queued": True,
+                "message": f"Sıradaki ders-mola aralığı: {goal_lbl} - {brk_min} Dakika olarak sıraya alındı! Mevcut mola ders aralığı bittikten sonra aktifleşecek.",
+            }
+        else:
+            goal_lbl = format_goal_short_tr(res.get("new_goal_sec", goal_sec))
+            brk_min = res.get("break_minutes", clamped_break)
+            return {"ok": True, "queued": False, "message": f"Mola Barajı güncellendi: Hedef {goal_lbl}, Mola {brk_min} Dakika."}
 
     def get_lock_modal_data(self) -> dict:
         cd = self._engine.get_tyt_countdown()
