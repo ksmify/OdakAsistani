@@ -328,9 +328,9 @@ def create_tray_icon_image() -> Image.Image:
 def bring_window_to_topmost(window=None, restore_tray_cb=None):
     """
     Restores Odak Asistanı if minimized or hidden in tray,
-    bypasses Windows foreground locking, brings it to foreground
-    and sets HWND_TOPMOST so it overlays fullscreen videos/apps,
-    flashes the taskbar, and plays an alert sound.
+    sets HWND_TOPMOST so it cleanly overlays fullscreen videos/apps,
+    brings it to foreground without AttachThreadInput/keybd_event deadlocks,
+    and flashes the taskbar.
     """
     if restore_tray_cb:
         try:
@@ -342,7 +342,6 @@ def bring_window_to_topmost(window=None, restore_tray_cb=None):
         try:
             window.show()
             window.restore()
-            window.on_top = True
         except Exception:
             pass
 
@@ -350,7 +349,6 @@ def bring_window_to_topmost(window=None, restore_tray_cb=None):
         hwnd = ctypes.windll.user32.FindWindowW(None, "Odak Asistanı")
         if hwnd:
             user32 = ctypes.windll.user32
-            kernel32 = ctypes.windll.kernel32
 
             user32.SetWindowPos.argtypes = [
                 ctypes.c_void_p,
@@ -375,32 +373,9 @@ def bring_window_to_topmost(window=None, restore_tray_cb=None):
             else:
                 user32.ShowWindow(hwnd, SW_SHOW)
 
-            # Bypass LockSetForegroundWindow
-            fg_hwnd = user32.GetForegroundWindow()
-            fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None)
-            cur_tid = kernel32.GetCurrentThreadId()
-
-            attached = False
-            if fg_tid != cur_tid and fg_tid != 0:
-                attached = bool(user32.AttachThreadInput(cur_tid, fg_tid, True))
-
-            try:
-                user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, FLAGS)
-                user32.SetForegroundWindow(hwnd)
-                user32.BringWindowToTop(hwnd)
-            finally:
-                if attached:
-                    user32.AttachThreadInput(cur_tid, fg_tid, False)
-
-            if user32.GetForegroundWindow() != hwnd:
-                VK_MENU = 0x12
-                KEYEVENTF_KEYUP = 0x0002
-                user32.keybd_event(VK_MENU, 0, 0, 0)
-                user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, FLAGS)
-                user32.SetForegroundWindow(hwnd)
-                user32.BringWindowToTop(hwnd)
-                user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
-
+            user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, FLAGS)
+            user32.BringWindowToTop(hwnd)
+            user32.SetForegroundWindow(hwnd)
             user32.FlashWindow(hwnd, True)
     except Exception:
         pass
@@ -564,7 +539,7 @@ class OdakBridgeApi:
             with self._engine.lock:
                 self._engine.reward_popup_shown = True
             auto_open_reward = True
-            bring_window_to_topmost(self._window, self._restore_tray_cb)
+            threading.Thread(target=bring_window_to_topmost, args=(self._window, self._restore_tray_cb), daemon=True).start()
             try:
                 winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
             except Exception:
