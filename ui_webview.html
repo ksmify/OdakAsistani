@@ -1622,7 +1622,19 @@
       <button id="rewTabAg" class="tab-btn" onclick="switchRewardTab('ag')">Asistan'ın Seçtikleri</button>
     </div>
     <div id="rewardItemsList" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding-right:4px;"></div>
-    <button class="btn" style="height:38px; width:100%;" onclick="dismissRewardModal()">Molaya Gerek Yok, Sayacı Sıfırla ve Çalışmaya Devam Et</button>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-top:6px;">
+      <button id="btnApplessBreak" class="btn" style="height:38px; width:100%; display:flex; align-items:center; justify-content:center; gap:8px; border:1px solid rgba(56, 189, 248, 0.4); background:rgba(56, 189, 248, 0.08); color:#38bdf8; font-weight:600; font-size:12.5px; border-radius:8px; cursor:pointer; transition:all 0.15s ease;" onclick="claimApplessBreak()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+          <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+          <line x1="6" y1="1" x2="6" y2="4"></line>
+          <line x1="10" y1="1" x2="10" y2="4"></line>
+          <line x1="14" y1="1" x2="14" y2="4"></line>
+        </svg>
+        <span>Uygulamasız Mola Ver (Kilitleri Açma)</span>
+      </button>
+      <button class="btn" style="height:38px; width:100%;" onclick="dismissRewardModal()">Molaya Gerek Yok, Sayacı Sıfırla ve Çalışmaya Devam Et</button>
+    </div>
   </div>
 </div>
 
@@ -2789,6 +2801,14 @@ async function claimRewardItem(id) {
   closeModal("rewardModal");
   const res = await callApi("claim_reward_item", id);
   if (res) setFeedback(res.message, "var(--accent-emerald-text)");
+  lastStageSig = "";
+  pollState();
+}
+
+async function claimApplessBreak() {
+  closeModal("rewardModal");
+  const res = await callApi("claim_appless_break");
+  if (res) setFeedback(res.message, "var(--accent-cyan)");
   lastStageSig = "";
   pollState();
 }

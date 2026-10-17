@@ -162,6 +162,97 @@ def send_ctrl_w():
 EMERGENCY_DURATION_SECONDS = 30 * 60          # 30 dakika (1800 sn)
 EMERGENCY_COOLDOWN_SECONDS = 7 * 24 * 3600    # Haftada 1 kez (7 gün = 604800 sn)
 
+KNOWN_BRAND_ECOSYSTEMS = {
+    "roblox": {
+        "domains": ["roblox.com", "www.roblox.com", "rbxcdn.com"],
+        "exes": [
+            "robloxplayerbeta.exe", "robloxplayerlauncher.exe", "roblox.exe",
+            "robloxstudiobeta.exe", "robloxplayerinstaller.exe", "robloxcrashhandler.exe"
+        ],
+        "keywords": ["roblox"]
+    },
+    "discord": {
+        "domains": ["discord.com", "www.discord.com", "discordapp.com", "discord.gg"],
+        "exes": ["discord.exe", "discordptb.exe", "discordcanary.exe", "discorddevelopment.exe"],
+        "keywords": ["discord"]
+    },
+    "instagram": {
+        "domains": ["instagram.com", "www.instagram.com", "m.instagram.com", "l.instagram.com", "api.instagram.com"],
+        "exes": ["instagram.exe", "hd-player.exe"],
+        "keywords": ["instagram", "reels"]
+    },
+    "tiktok": {
+        "domains": ["tiktok.com", "www.tiktok.com", "m.tiktok.com", "v16-webapp-prime.tiktok.com"],
+        "exes": ["tiktok.exe", "hd-player.exe"],
+        "keywords": ["tiktok"]
+    },
+    "twitter": {
+        "domains": ["twitter.com", "www.twitter.com", "x.com", "www.x.com", "t.co"],
+        "exes": ["twitter.exe", "x.exe"],
+        "keywords": ["twitter", "x.com"]
+    },
+    "whatsapp": {
+        "domains": ["whatsapp.com", "www.whatsapp.com", "web.whatsapp.com"],
+        "exes": ["whatsapp.exe", "whatsapp.root.exe"],
+        "keywords": ["whatsapp"]
+    },
+    "telegram": {
+        "domains": ["telegram.org", "web.telegram.org", "t.me"],
+        "exes": ["telegram.exe", "unigram.exe"],
+        "keywords": ["telegram"]
+    },
+    "steam": {
+        "domains": ["steampowered.com", "steamcommunity.com", "store.steampowered.com"],
+        "exes": ["steam.exe", "steamwebhelper.exe", "steamservice.exe", "gameoverlayui.exe"],
+        "keywords": ["steam"]
+    },
+    "valorant": {
+        "domains": ["playvalorant.com", "riotgames.com"],
+        "exes": ["valorant.exe", "valorant-win64-shipping.exe", "riotclientservices.exe", "riotclientux.exe"],
+        "keywords": ["valorant", "riot"]
+    },
+    "lol": {
+        "domains": ["leagueoflegends.com", "riotgames.com"],
+        "exes": ["leagueclient.exe", "leagueclientux.exe", "league of legends.exe", "riotclientservices.exe", "riotclientux.exe"],
+        "keywords": ["league of legends", "leagueclient"]
+    },
+    "epicgames": {
+        "domains": ["epicgames.com", "rocketleague.com"],
+        "exes": ["epicgameslauncher.exe", "epicwebhelper.exe", "rocketleague.exe", "cs2.exe", "fortniteclient-win64-shipping.exe"],
+        "keywords": ["epic games", "rocket league", "fortnite"]
+    },
+    "spotify": {
+        "domains": ["spotify.com", "open.spotify.com"],
+        "exes": ["spotify.exe"],
+        "keywords": ["spotify"]
+    },
+    "minecraft": {
+        "domains": ["minecraft.net", "craftrise.com.tr"],
+        "exes": ["craftrise.exe", "minecraft.windows.exe", "minecraftlauncher.exe", "javaw.exe", "java.exe", "minecraft.exe"],
+        "keywords": ["minecraft", "craftrise"]
+    },
+    "twitch": {
+        "domains": ["twitch.tv", "www.twitch.tv"],
+        "exes": ["twitch.exe"],
+        "keywords": ["twitch"]
+    },
+    "netflix": {
+        "domains": ["netflix.com", "www.netflix.com"],
+        "exes": ["netflix.exe"],
+        "keywords": ["netflix"]
+    },
+    "capcut": {
+        "domains": ["capcut.com", "www.capcut.com"],
+        "exes": ["capcut.exe"],
+        "keywords": ["capcut"]
+    },
+    "osu": {
+        "domains": ["ppy.sh", "tetr.io"],
+        "exes": ["osu!.exe", "tetr.io.exe"],
+        "keywords": ["osu!", "tetr.io"]
+    }
+}
+
 
 class BlockerEngine:
     def __init__(self, on_state_change=None, on_log_event=None, reset_study_on_boot: bool = False):
@@ -1145,9 +1236,12 @@ class BlockerEngine:
         .exe süreçlerini, alan adlarını ve sekme anahtar kelimelerini döndürür.
         Böylece başka bir kilitli öğe aynı emülatörü (örn. HD-Player.exe) veya
         aynı alan adını (örn. instagram.com) paylaşsa bile mola süresince engelleyemez!
+        Uygulamasız mola (appless_break) durumunda hiçbir istisna verilmez (tüm kilitler kalır).
         """
         now = time.time()
         if not self.reward_break_item_id or now >= self.reward_break_end_ts:
+            return set(), set(), set()
+        if self.reward_break_item_id == "appless_break":
             return set(), set(), set()
 
         active_ids = [self.reward_break_item_id] + list(self.reward_break_related_ids)
@@ -1159,19 +1253,51 @@ class BlockerEngine:
             it = self.items.get(aid)
             if not it:
                 continue
+
+            # 1. Bilinen ekosistem eşleşmesi (örn. roblox, discord, instagram vb.)
+            raw_text = " ".join([it.get("id", ""), it.get("name", "")] + list(it.get("aliases", []))).lower()
+            for b_name, eco in KNOWN_BRAND_ECOSYSTEMS.items():
+                if b_name in raw_text or b_name in it.get("id", "").lower():
+                    for ed in eco.get("domains", []):
+                        exempt_domains.add(ed.lower())
+                        exempt_domains.add("www." + ed.lower()) if not ed.startswith("www.") else exempt_domains.add(ed.lower()[4:])
+                    for ee in eco.get("exes", []):
+                        exempt_exes.add(ee.lower())
+                    for ek in eco.get("keywords", []):
+                        exempt_keywords.add(ek.lower())
+
+            # 2. Öğenin doğrudan tanımlı alan adları
             for d in it.get("domains", []):
                 if d:
                     d_low = d.strip().lower()
                     exempt_domains.add(d_low)
+                    if d_low.startswith("www."):
+                        exempt_domains.add(d_low[4:])
+                    else:
+                        exempt_domains.add("www." + d_low)
                     base = d_low.replace("www.", "").split(".")[0]
                     if len(base) >= 4:
                         exempt_keywords.add(base)
+
+            # 3. Öğenin doğrudan tanımlı süreçleri (.exe)
             for e in it.get("exe_names", []):
                 if e:
-                    exempt_exes.add(e.strip().lower())
+                    e_clean = e.strip().lower()
+                    exempt_exes.add(e_clean)
+                    base_exe = e_clean.replace(".exe", "")
+                    if len(base_exe) >= 4:
+                        exempt_keywords.add(base_exe)
+
+            # 4. Öğenin sekme anahtar kelimeleri
             for kw in it.get("tab_keywords", []):
                 if kw:
                     exempt_keywords.add(kw.strip().lower())
+
+            # 5. İsimdeki anahtar kelimeler
+            name_tokens = re.findall(r"[a-z0-9ğüşıöç]{4,}", (it.get("name") or "").lower())
+            for tok in name_tokens:
+                if tok not in ("uygulama", "sekme", "oyunlar", "oyun", "platform", "mesajlasma", "bildirim"):
+                    exempt_keywords.add(tok)
 
         return exempt_domains, exempt_exes, exempt_keywords
 
@@ -1185,16 +1311,19 @@ class BlockerEngine:
         """
         with self.lock:
             exempt_domains, _, _ = self._get_active_break_exemptions()
+            active_ids = ([self.reward_break_item_id] + list(self.reward_break_related_ids)) if self.reward_break_item_id else []
             domains_to_block = []
             if not force_clean and self.settings.get("enable_hosts_blocker", True):
                 for item in self.items.values():
-                    if item.get("blocked"):
+                    if item.get("blocked") and item.get("id") not in active_ids:
                         for d in item.get("domains", []):
                             d_clean = d.strip().lower()
                             # YouTube sabit ders kaynağıdır: Alan adı asla hosts dosyasına yazılamaz!
                             if d_clean in ("youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"):
                                 continue
-                            if d_clean and d_clean not in exempt_domains and d_clean not in domains_to_block:
+                            if any(d_clean == ex_d or d_clean.endswith("." + ex_d) or ex_d.endswith("." + d_clean) for ex_d in exempt_domains):
+                                continue
+                            if d_clean and d_clean not in domains_to_block:
                                 domains_to_block.append(d_clean)
 
             signature = tuple(sorted(domains_to_block))
@@ -1257,14 +1386,25 @@ class BlockerEngine:
         with self.lock:
             if not self.settings.get("enable_process_blocker", True):
                 return
-            _, exempt_exes, _ = self._get_active_break_exemptions()
+            _, exempt_exes, exempt_keywords = self._get_active_break_exemptions()
+            active_ids = ([self.reward_break_item_id] + list(self.reward_break_related_ids)) if self.reward_break_item_id else []
+            exempt_prefixes = set()
+            for ex in exempt_exes:
+                base_ex = ex.replace(".exe", "").strip()
+                if len(base_ex) >= 4:
+                    exempt_prefixes.add(base_ex)
+            for kw in exempt_keywords:
+                if len(kw) >= 4:
+                    exempt_prefixes.add(kw)
+
             blocked_exe_map = {}
             for item in self.items.values():
-                if item.get("blocked"):
+                if item.get("blocked") and item.get("id") not in active_ids:
                     for exe in item.get("exe_names", []):
                         exe_lower = exe.lower().strip()
                         if exe_lower and exe_lower not in SAFE_SYSTEM_PROCESSES and exe_lower not in exempt_exes:
-                            blocked_exe_map[exe_lower] = item["name"]
+                            if not any(exe_lower.startswith(pref) for pref in exempt_prefixes):
+                                blocked_exe_map[exe_lower] = item["name"]
 
             if self.settings.get("block_taskmgr", False):
                 blocked_exe_map["taskmgr.exe"] = "Görev Yöneticisi (Katı Koruma Kalkanı)"
@@ -1285,6 +1425,8 @@ class BlockerEngine:
                     continue
 
                 if pname in blocked_exe_map:
+                    if pname in exempt_exes or any(pname.startswith(pref) for pref in exempt_prefixes):
+                        continue
                     friendly_name = blocked_exe_map[pname]
                     raw_name = proc.info["name"]
                     try:
@@ -1415,13 +1557,18 @@ class BlockerEngine:
             if not force_all_windows and (time.time() - self._last_tab_close_ts < 0.20):
                 return
 
-            _, _, exempt_keywords = self._get_active_break_exemptions()
+            exempt_domains, _, exempt_keywords = self._get_active_break_exemptions()
+            active_ids = ([self.reward_break_item_id] + list(self.reward_break_related_ids)) if self.reward_break_item_id else []
             blocked_tab_rules = []
             specific_url_rules = []
             for item in self.items.values():
-                if item.get("blocked") and item.get("item_type") in ("site", "both"):
+                if item.get("blocked") and item.get("id") not in active_ids and item.get("item_type") in ("site", "both"):
                     # 1. URL kuralları (yalnızca belirli bir sayfa/yol engellenmişse)
-                    url_rules = item.get("url_rules", [])
+                    url_rules = [
+                        ur for ur in item.get("url_rules", [])
+                        if not any(ex_d in ur.lower() for ex_d in exempt_domains)
+                        and not any(ex_kw in ur.lower() for ex_kw in exempt_keywords)
+                    ]
                     title_all_kw = item.get("title_all_keywords", [])
                     if url_rules or title_all_kw:
                         specific_url_rules.append((item["name"], url_rules, title_all_kw))
@@ -1429,7 +1576,11 @@ class BlockerEngine:
 
                     # 2. Standart tüm site kuralları
                     keywords = [k.lower() for k in item.get("tab_keywords", []) if k and k.lower() not in exempt_keywords]
-                    domains = [d.lower() for d in item.get("domains", []) if d]
+                    domains = [
+                        d.lower() for d in item.get("domains", [])
+                        if d and d.lower() not in exempt_domains
+                        and not any(d.lower().endswith("." + ex_d) or ex_d.endswith("." + d.lower()) for ex_d in exempt_domains)
+                    ]
                     for d in domains:
                         base = d.lower().replace("www.", "").split(".")[0]
                         if len(base) >= 4 and base not in keywords and base not in exempt_keywords:
@@ -1701,9 +1852,38 @@ class BlockerEngine:
             if linked_ids:
                 linked_names = ", ".join(self.items[lid]["name"] for lid in linked_ids if lid in self.items)
                 name = f"{name} (+ {linked_names})"
+            self.save_state()
 
         self.sync_hosts_file()
-        self.add_log(f"🎉 Ödül Molası Başladı: {name} {break_mins} dakikalığına açıldı!")
+        self.add_log(f"Ödül Molası Başladı: {name} {break_mins} dakikalığına açıldı!")
+        self._notify_change()
+        return True
+
+    def claim_appless_break(self) -> bool:
+        """
+        Kullanıcı hiçbir uygulamanın veya sitenin kilidini açmadan yalnızca
+        mola süresini (örn. 10 dk) başlatmak istediğinde çalıştırılır.
+        Tüm kilitler %100 tavizsiz korunur. Sadece dinlenme mola sayacı işler.
+        """
+        with self.lock:
+            break_mins = int(self.reward_break_minutes)
+            self.reward_break_duration_sec = break_mins * 60
+            self.reward_break_item_id = "appless_break"
+            self.reward_break_related_ids = []
+            self.reward_break_end_ts = time.time() + self.reward_break_duration_sec
+            if self.manual_study_active and self.manual_study_subject_id:
+                self.last_stopped_manual_subject_id = self.manual_study_subject_id
+                self.last_stopped_manual_ts = time.time()
+            self.manual_study_active = False
+            self.manual_study_subject_id = ""
+            self.is_study_counting = False
+            self.study_watched_seconds = 0.0
+            self.reward_available = False
+            self.reward_popup_shown = False
+            self._triggered_break_milestones.clear()
+            self.save_state()
+
+        self.add_log(f"Zihin Dinlendirme Molası Başladı: {break_mins} dakika boyunca tüm engeller tavizsiz korunuyor.")
         self._notify_change()
         return True
 
@@ -2450,6 +2630,7 @@ class BlockerEngine:
         tyt_just_unlocked = False
         pending_activated_msg = None
         overlay_spawn_sec = None
+        appless_finished = False
 
         with self.lock:
             # 0) TYT'den 1 gün öncesine (18 Haziran 2027 Cuma 00:00) ulaşıldı mı?
@@ -2474,6 +2655,7 @@ class BlockerEngine:
                 self.reward_break_item_id = None
                 self.reward_break_related_ids = []
                 self.reward_break_end_ts = 0.0
+                appless_finished = (rb_id == "appless_break")
                 if rb_id in self.items:
                     self.items[rb_id]["blocked"] = True
                     self.items[rb_id]["until_ts"] = 0.0
@@ -2548,6 +2730,9 @@ class BlockerEngine:
             self.enforce_processes_once()
             self.enforce_browser_tabs_once(force_all_windows=True)
 
+        if appless_finished:
+            self.add_log(f"Mola Tamamlandı: {relocked_break_mins} dakikalık zihin dinlendirme molası sona erdi. Çalışma döngüsü hazır!")
+
         if pending_activated_msg:
             self.add_log(pending_activated_msg)
             self.save_state()
@@ -2562,6 +2747,7 @@ class BlockerEngine:
             self._spawn_break_overlay(overlay_spawn_sec)
 
         if changed:
+            self.save_state()
             self._notify_change()
 
     def _enforcement_loop(self):

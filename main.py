@@ -472,10 +472,15 @@ class OdakBridgeApi:
 
         if rb_id and rem_break > 0:
             bm, bs = divmod(rem_break, 60)
-            b_name = self._engine.items.get(rb_id, {}).get("name", rb_id)
-            dock_time_text = f"{break_mins} Dk Ödül Molası: {bm:02d}:{bs:02d} kaldı{p_str}"
-            dock_video_text = f"'{b_name}' mola için açık — Süre bitince otomatik kilitlenecek"
-            dock_video_color = "#34d399"
+            if rb_id == "appless_break":
+                dock_time_text = f"{break_mins} Dk Dinlenme Molası: {bm:02d}:{bs:02d} kaldı{p_str}"
+                dock_video_text = "Uygulamasız Zihin Dinlendirme Molası — Tüm engeller tavizsiz korunuyor"
+                dock_video_color = "#38bdf8"
+            else:
+                b_name = self._engine.items.get(rb_id, {}).get("name", rb_id)
+                dock_time_text = f"{break_mins} Dk Ödül Molası: {bm:02d}:{bs:02d} kaldı{p_str}"
+                dock_video_text = f"'{b_name}' mola için açık — Süre bitince otomatik kilitlenecek"
+                dock_video_color = "#34d399"
             dock_progress = rem_break / float(max(1, break_dur_sec))
         else:
             hrs, rem = divmod(watched, 3600)
@@ -1005,6 +1010,12 @@ class OdakBridgeApi:
         break_min = int(getattr(self._engine, "reward_break_minutes", 10))
         self._engine.claim_reward_break(item_id)
         return {"ok": True, "message": f"{break_min} dakikalık ödül molası başladı: '{item_name}' şu an açık."}
+
+    def claim_appless_break(self) -> dict:
+        release_window_topmost(self._window)
+        break_min = int(getattr(self._engine, "reward_break_minutes", 10))
+        self._engine.claim_appless_break()
+        return {"ok": True, "message": f"{break_min} dakikalık zihin dinlendirme molası başladı. Kilitler tavizsiz korunuyor."}
 
     def dismiss_reward(self) -> dict:
         release_window_topmost(self._window)

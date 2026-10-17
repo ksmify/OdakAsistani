@@ -65,9 +65,9 @@ DEFAULT_ITEMS = [
         "icon": "💬",
         "category": "Mesajlaşma & Bildirim",
         "item_type": "app",
-        "domains": [],
-        "exe_names": ["Discord.exe", "DiscordPTB.exe", "DiscordCanary.exe"],
-        "tab_keywords": [],
+        "domains": ["discord.com", "discordapp.com", "discord.gg"],
+        "exe_names": ["Discord.exe", "DiscordPTB.exe", "DiscordCanary.exe", "DiscordDevelopment.exe"],
+        "tab_keywords": ["discord"],
         "aliases": ["discord", "dc", "diskord"]
     },
     {
@@ -76,13 +76,13 @@ DEFAULT_ITEMS = [
         "icon": "📱",
         "category": "Oyun & Platform",
         "item_type": "app",
-        "domains": [],
+        "domains": ["bluestacks.com"],
         "exe_names": [
             "HD-Player.exe", "HD-MultiInstanceManager.exe",
             "BlueStacksWeb.exe", "BlueStacks.exe", "BstkSVC.exe",
-            "BlueStacksServices.exe"
+            "BlueStacksServices.exe", "BlueStacks X.exe"
         ],
-        "tab_keywords": [],
+        "tab_keywords": ["bluestacks"],
         "aliases": [
             "bluestacks", "bluestacks 5", "bluestack", "bluestacks x",
             "hd-player", "brawl stars", "brawlstars"
@@ -94,9 +94,9 @@ DEFAULT_ITEMS = [
         "icon": "🟢",
         "category": "Mesajlaşma & Bildirim",
         "item_type": "app",
-        "domains": [],
+        "domains": ["web.whatsapp.com", "whatsapp.com"],
         "exe_names": ["WhatsApp.exe", "WhatsApp.Root.exe"],
-        "tab_keywords": [],
+        "tab_keywords": ["whatsapp"],
         "aliases": ["whatsapp", "wp", "watsap", "whatsap"]
     },
     {
@@ -105,9 +105,9 @@ DEFAULT_ITEMS = [
         "icon": "🎮",
         "category": "Oyun & Platform",
         "item_type": "app",
-        "domains": [],
-        "exe_names": ["steam.exe", "steamwebhelper.exe"],
-        "tab_keywords": [],
+        "domains": ["steampowered.com", "steamcommunity.com"],
+        "exe_names": ["steam.exe", "steamwebhelper.exe", "steamservice.exe", "gameoverlayui.exe"],
+        "tab_keywords": ["steam"],
         "aliases": ["steam", "stim"]
     },
     {
@@ -116,11 +116,12 @@ DEFAULT_ITEMS = [
         "icon": "🧱",
         "category": "Oyun & Platform",
         "item_type": "app",
-        "domains": [],
+        "domains": ["roblox.com", "www.roblox.com", "rbxcdn.com"],
         "exe_names": [
-            "RobloxPlayerBeta.exe", "RobloxStudioBeta.exe", "RobloxPlayerInstaller.exe"
+            "RobloxPlayerBeta.exe", "RobloxPlayerLauncher.exe", "Roblox.exe",
+            "RobloxStudioBeta.exe", "RobloxPlayerInstaller.exe", "RobloxCrashHandler.exe"
         ],
-        "tab_keywords": [],
+        "tab_keywords": ["roblox"],
         "aliases": ["roblox", "roblox player", "roblox studio"]
     },
     {
@@ -129,12 +130,12 @@ DEFAULT_ITEMS = [
         "icon": "🔫",
         "category": "Oyun & Platform",
         "item_type": "app",
-        "domains": [],
+        "domains": ["playvalorant.com", "riotgames.com"],
         "exe_names": [
             "VALORANT.exe", "VALORANT-Win64-Shipping.exe",
             "RiotClientServices.exe", "RiotClientUx.exe"
         ],
-        "tab_keywords": [],
+        "tab_keywords": ["valorant", "riot"],
         "aliases": ["valorant", "valo", "riot", "riot client"]
     },
     {
@@ -143,11 +144,12 @@ DEFAULT_ITEMS = [
         "icon": "⚔️",
         "category": "Oyun & Platform",
         "item_type": "app",
-        "domains": [],
+        "domains": ["leagueoflegends.com", "riotgames.com"],
         "exe_names": [
-            "LeagueClient.exe", "LeagueClientUx.exe", "League of Legends.exe"
+            "LeagueClient.exe", "LeagueClientUx.exe", "League of Legends.exe",
+            "RiotClientServices.exe", "RiotClientUx.exe"
         ],
-        "tab_keywords": [],
+        "tab_keywords": ["league of legends", "leagueclient"],
         "aliases": ["lol", "league of legends", "league"]
     },
     {
@@ -156,12 +158,12 @@ DEFAULT_ITEMS = [
         "icon": "🕹️",
         "category": "Oyun & Platform",
         "item_type": "app",
-        "domains": [],
+        "domains": ["epicgames.com", "rocketleague.com"],
         "exe_names": [
-            "EpicGamesLauncher.exe", "RocketLeague.exe", "cs2.exe",
+            "EpicGamesLauncher.exe", "EpicWebHelper.exe", "RocketLeague.exe", "cs2.exe",
             "FortniteClient-Win64-Shipping.exe"
         ],
-        "tab_keywords": [],
+        "tab_keywords": ["epic games", "rocket league", "fortnite"],
         "aliases": [
             "epic", "epic games", "rocket league", "rl", "cs2",
             "counter strike", "fortnite"
@@ -173,9 +175,9 @@ DEFAULT_ITEMS = [
         "icon": "🎯",
         "category": "Oyun & Platform",
         "item_type": "app",
-        "domains": [],
+        "domains": ["ppy.sh", "tetr.io"],
         "exe_names": ["osu!.exe", "TETR.IO.exe"],
-        "tab_keywords": [],
+        "tab_keywords": ["osu!", "tetr.io"],
         "aliases": ["osu", "osu!", "osulazer", "tetr.io", "tetrio", "tetris"]
     },
     {
@@ -184,11 +186,12 @@ DEFAULT_ITEMS = [
         "icon": "⛏️",
         "category": "Oyun & Platform",
         "item_type": "app",
-        "domains": [],
+        "domains": ["minecraft.net", "craftrise.com.tr"],
         "exe_names": [
-            "CraftRise.exe", "Minecraft.Windows.exe", "MinecraftLauncher.exe", "javaw.exe"
+            "CraftRise.exe", "Minecraft.Windows.exe", "MinecraftLauncher.exe",
+            "javaw.exe", "java.exe", "Minecraft.exe"
         ],
-        "tab_keywords": [],
+        "tab_keywords": ["minecraft", "craftrise"],
         "aliases": ["craftrise", "craft rise", "minecraft", "mc"]
     },
     {
@@ -197,9 +200,9 @@ DEFAULT_ITEMS = [
         "icon": "✈️",
         "category": "Mesajlaşma & Bildirim",
         "item_type": "app",
-        "domains": [],
+        "domains": ["web.telegram.org", "telegram.org", "t.me"],
         "exe_names": ["Telegram.exe", "Unigram.exe"],
-        "tab_keywords": [],
+        "tab_keywords": ["telegram"],
         "aliases": ["telegram", "tg"]
     },
     {
@@ -208,9 +211,9 @@ DEFAULT_ITEMS = [
         "icon": "🎧",
         "category": "Video & Yayın",
         "item_type": "app",
-        "domains": [],
+        "domains": ["spotify.com", "open.spotify.com"],
         "exe_names": ["Spotify.exe"],
-        "tab_keywords": [],
+        "tab_keywords": ["spotify"],
         "aliases": ["spotify", "spoti"]
     },
     {

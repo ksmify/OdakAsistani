@@ -204,17 +204,24 @@ class FloatingBarApp:
         is_vertical = (h > w)
 
         if in_break:
-            # MOLA MODU (Altın/Kehribar parıltı)
             rem_sec = max(0, int(rb_end - now))
             tot_brk = max(60, int(study.get("reward_break_duration_sec", 600)))
             progress = max(0.0, min(1.0, rem_sec / tot_brk))
             m, s = divmod(rem_sec, 60)
             tag_text = f"{m:02d}:{s:02d}"
 
-            bg_col = "#13100a"
-            fill_col = "#d97706"
-            border_col = "#f59e0b"
-            text_col = "#fef08a"
+            if rb_id == "appless_break":
+                break_title = "DİNLENME MOLASI"
+                bg_col = "#08131d"
+                fill_col = "#0284c7"
+                border_col = "#38bdf8"
+                text_col = "#e0f2fe"
+            else:
+                break_title = "MOLA"
+                bg_col = "#13100a"
+                fill_col = "#d97706"
+                border_col = "#f59e0b"
+                text_col = "#fef08a"
 
             self.canvas.create_rectangle(0, 0, w, h, fill=bg_col, outline=border_col, width=1.5)
 
@@ -223,9 +230,9 @@ class FloatingBarApp:
                 if fill_h > 0:
                     self.canvas.create_rectangle(1, 1, w - 1, fill_h, fill=fill_col, outline="")
                 # Vertical labels
-                self.canvas.create_text(w // 2, 14, text="MOLA", fill=text_col, font=("Segoe UI", 8, "bold"))
+                self.canvas.create_text(w // 2, 14, text=break_title, fill=text_col, font=("Segoe UI", 8, "bold"))
                 self.canvas.create_text(w // 2, h // 2, text=tag_text, fill="#ffffff", font=("Segoe UI", 10, "bold"))
-                self.canvas.create_text(w // 2, h - 14, text="MOLA", fill=border_col, font=("Segoe UI", 9))
+                self.canvas.create_text(w // 2, h - 14, text=break_title, fill=border_col, font=("Segoe UI", 8))
             else:
                 fill_w = int(w * progress)
                 if fill_w > 0:
@@ -233,7 +240,7 @@ class FloatingBarApp:
                 # Horizontal labels
                 self.canvas.create_text(
                     w // 2, h // 2,
-                    text=f"MOLA DEVAM EDİYOR • Kalan: {tag_text}",
+                    text=f"{break_title} DEVAM EDİYOR • Kalan: {tag_text}",
                     fill=text_col,
                     font=("Segoe UI", 9, "bold")
                 )
