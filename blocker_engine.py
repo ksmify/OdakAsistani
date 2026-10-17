@@ -606,6 +606,12 @@ class BlockerEngine:
                                 self.reward_break_item_id = rb_id
                                 self.reward_break_related_ids = [rid for rid in rb_rel if rid in self.items]
                                 self.reward_break_end_ts = rb_end
+                                self.items[rb_id]["blocked"] = False
+                                self.items[rb_id]["until_ts"] = 0.0
+                                for rid in self.reward_break_related_ids:
+                                    if rid in self.items:
+                                        self.items[rid]["blocked"] = False
+                                        self.items[rid]["until_ts"] = 0.0
                             else:
                                 # Bilgisayar kapalıyken veya mola süresi dolmuşsa tekrar kilitle!
                                 self.items[rb_id]["blocked"] = True
