@@ -327,24 +327,9 @@ def create_tray_icon_image() -> Image.Image:
 
 def bring_window_to_topmost(window=None, restore_tray_cb=None):
     """
-    Restores Odak Asistanı if minimized or hidden in tray,
-    sets HWND_TOPMOST so it cleanly overlays fullscreen videos/apps,
-    brings it to foreground without AttachThreadInput/keybd_event deadlocks,
-    and flashes the taskbar.
+    Restores Odak Asistanı if minimized and brings it cleanly above all windows
+    using pure Win32 API. Never calls WinForms/pywebview wrappers from background threads.
     """
-    if restore_tray_cb:
-        try:
-            restore_tray_cb()
-        except Exception:
-            pass
-
-    if window:
-        try:
-            window.show()
-            window.restore()
-        except Exception:
-            pass
-
     try:
         hwnd = ctypes.windll.user32.FindWindowW(None, "Odak Asistanı")
         if hwnd:
@@ -386,12 +371,6 @@ def release_window_topmost(window=None):
     Releases the HWND_TOPMOST flag after the user picks a reward or dismisses the break modal,
     returning Odak Asistanı to normal desktop z-ordering.
     """
-    if window:
-        try:
-            window.on_top = False
-        except Exception:
-            pass
-
     try:
         hwnd = ctypes.windll.user32.FindWindowW(None, "Odak Asistanı")
         if hwnd:
@@ -539,7 +518,7 @@ class OdakBridgeApi:
             with self._engine.lock:
                 self._engine.reward_popup_shown = True
             auto_open_reward = True
-            threading.Thread(target=bring_window_to_topmost, args=(self._window, self._restore_tray_cb), daemon=True).start()
+            threading.Thread(target=bring_window_to_topmost, daemon=True).start()
             try:
                 winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
             except Exception:
@@ -559,6 +538,7 @@ class OdakBridgeApi:
                 "manual_active": bool(man_active),
                 "video_trigger_on": is_trig_on,
             },
+            "reward_ready": bool(reward_ready),
             "AutoOpenRewardPopup": auto_open_reward,
             "daily_goal": self._engine.get_daily_goal_summary(),
             "daily_goal_should_prompt": bool(self._engine.should_show_daily_goal_modal()),
@@ -1126,14 +1106,9 @@ def main():
             except Exception:
                 pass
             tray_holder["icon"] = None
-        try:
-            win.show()
-            win.restore()
-        except Exception:
-            pass
-        bring_window_to_topmost(win)
+        bring_window_to_topmost()
         if not engine.reward_available:
-            release_window_topmost(win)
+            release_window_topmost()
 
     api._restore_tray_cb = restore_from_tray
 
